@@ -12,7 +12,7 @@ time_index = np.loadtxt(InputName, delimiter=',', skiprows=1, usecols=2)
 
 # 因为自己手动将数据合在一块儿了，所以不用编写generate_txt部分代码来进行数据预处理
 if True:
-    # initial_stiff = np.abs((force[1]-force[0])/(displace[1]-displace[0]))
+    initial_stiff = np.abs((force[1]-force[0])/(displace[1]-displace[0]))
     degraded_stiff = [None] * len(force)  # 定义一个空列表，用于后边存放退化刚度
 
     '''计算翻转点'''
@@ -106,8 +106,12 @@ if True:
                                      Periodic_cycle_point[tag]]) *
                                  (cumulative_deformation[i] - cumulative_deformation[Periodic_cycle_point[tag - 1]]))
     print(len(degraded_stiff))
-    print(degraded_stiff)
 
+    print("degraded_stiff:{}".format(degraded_stiff))
+    print("initial_stiff:{}".format(initial_stiff))
+
+    for i in range(len(force)):
+        print("退化刚度：{}，时间戳：{},累计位移：{}".format(degraded_stiff[i],time_index[i],cumulative_deformation[i]))
     '''数据可视化'''
-    plt.scatter(time_index, degraded_stiff)
+    plt.scatter(cumulative_deformation, degraded_stiff)
     plt.show()
