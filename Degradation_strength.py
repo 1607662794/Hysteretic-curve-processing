@@ -67,14 +67,14 @@ if True:
 
     '''计算每一圈退化刚度，还是有点儿问题，退化刚度并不是递减的,是实验数据的问题'''
     Periodic_cycle_point = reverse_number[::2]  # 每两个翻转点提取出第一个点
-    Periodic_cycle_degraded_stiffness = []  # 用于存储每一圈的退化刚度
+    Periodic_cycle_degraded_strength = []  # 用于存储每一圈的退化刚度
     print("存在滞回环的数量为{}个".format(len(Periodic_cycle_point)))
 
     for i in Periodic_cycle_point:
-        Periodic_cycle_degraded_stiffness.append(
-            (np.abs(force[i]) + np.abs(force[i + 1])) / (np.abs(displace[i]) + np.abs(displace[i + 1])))
-    print("退化刚度数量:{}(主要用于验证）".format(len(Periodic_cycle_degraded_stiffness)))
-    print("退化刚度:{}".format(Periodic_cycle_degraded_stiffness))
+        Periodic_cycle_degraded_strength.append(
+            (np.abs(force[i]) + np.abs(force[i + 1]))/2)
+    print("退化刚度数量:{}(主要用于验证）".format(len(Periodic_cycle_degraded_strength)))
+    print("退化刚度:{}".format(Periodic_cycle_degraded_strength))
 
     '''计算累计位移'''
     cumulative_deformation = [0]
@@ -85,23 +85,23 @@ if True:
     tag = 0
     for i in range(len(force)):
         if i < zero_number[1]:  # 刚开始一截不完整滞回环的线性插值，外插
-            degraded_stiff[i] = (Periodic_cycle_degraded_stiffness[0] +
-                                 (Periodic_cycle_degraded_stiffness[0] - Periodic_cycle_degraded_stiffness[1]) /
+            degraded_stiff[i] = (Periodic_cycle_degraded_strength[0] +
+                                 (Periodic_cycle_degraded_strength[0] - Periodic_cycle_degraded_strength[1]) /
                                  (cumulative_deformation[Periodic_cycle_point[0]] - cumulative_deformation[
                                      Periodic_cycle_point[1]]) *
                                  (cumulative_deformation[i] - cumulative_deformation[Periodic_cycle_point[0]]))
         elif i > zero_number[-1]:  # 最后一截不完整滞回环的线性插值，外插
-            degraded_stiff[i] = (Periodic_cycle_degraded_stiffness[-2] +
-                                 (Periodic_cycle_degraded_stiffness[-2] - Periodic_cycle_degraded_stiffness[-1]) /
+            degraded_stiff[i] = (Periodic_cycle_degraded_strength[-2] +
+                                 (Periodic_cycle_degraded_strength[-2] - Periodic_cycle_degraded_strength[-1]) /
                                  (cumulative_deformation[Periodic_cycle_point[-2]] - cumulative_deformation[
                                      Periodic_cycle_point[-1]]) *
                                  (cumulative_deformation[i] - cumulative_deformation[Periodic_cycle_point[-2]]))
         elif i in zero_number[1::2]:  # 完整滞回环的线性插值，内插，每两个零点处的刚度退化值不需要内插
-            degraded_stiff[i] = Periodic_cycle_degraded_stiffness[tag]
+            degraded_stiff[i] = Periodic_cycle_degraded_strength[tag]
             tag += 1
         else:  # 完整滞回环的线性插值，内插，每两个零点处的刚度退化值不需要内插
-            degraded_stiff[i] = (Periodic_cycle_degraded_stiffness[tag - 1] +
-                                 (Periodic_cycle_degraded_stiffness[tag - 1] - Periodic_cycle_degraded_stiffness[tag]) /
+            degraded_stiff[i] = (Periodic_cycle_degraded_strength[tag - 1] +
+                                 (Periodic_cycle_degraded_strength[tag - 1] - Periodic_cycle_degraded_strength[tag]) /
                                  (cumulative_deformation[Periodic_cycle_point[tag - 1]] - cumulative_deformation[
                                      Periodic_cycle_point[tag]]) *
                                  (cumulative_deformation[i] - cumulative_deformation[Periodic_cycle_point[tag - 1]]))
@@ -111,7 +111,7 @@ if True:
     print("initial_stiff:{}".format(initial_stiff))
 
     for i in range(len(force)):
-        print("退化刚度：{}，时间戳：{},累计位移：{}".format(degraded_stiff[i],time_index[i],cumulative_deformation[i]))
+        # print("退化刚度：{}，时间戳：{},累计位移：{}".format(degraded_stiff[i],time_index[i],cumulative_deformation[i]))
     '''数据可视化'''
     plt.scatter(cumulative_deformation, degraded_stiff)
     plt.show()
