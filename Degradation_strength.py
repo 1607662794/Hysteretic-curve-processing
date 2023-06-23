@@ -71,6 +71,8 @@ if True:
     print("存在滞回环的数量为{}个".format(len(Periodic_cycle_point)))
 
     '''刚开始没有发生强度退化，因此编写一个计算列表中绝对值最大的函数，该函数返回绝对值最大的序号'''
+
+
     def abs_value(object):
         value = object[0]
         for i in range(len(object)):
@@ -85,10 +87,13 @@ if True:
             (np.abs(force[i]) + np.abs(force[i + 1])) / 2)
     print("退化强度:{}".format(Periodic_cycle_degraded_strength))
 
-    init_strength_number = Periodic_cycle_point[abs_value(Periodic_cycle_degraded_strength)]
+    '''计算初始强度以及初始强度零点序号'''
+    for i in zero_number:
+        if i > Periodic_cycle_point[abs_value(Periodic_cycle_degraded_strength)]:
+            init_strength_number = i
+            break
     init_strength = Periodic_cycle_degraded_strength[abs_value(Periodic_cycle_degraded_strength)]
-
-    print("初始强度为{}".format(init_strength))
+    print("初始强度为：{}，初始强度零点序号：{}".format(init_strength, init_strength_number))
 
     '''计算累计位移'''
     cumulative_deformation = [0]
@@ -98,7 +103,7 @@ if True:
     # 线性插值得到每个点处的退化强度
     tag = abs_value(Periodic_cycle_degraded_strength)
     for i in range(len(force)):
-        if i < init_strength_number:
+        if i <= init_strength_number:
             degraded_stiff[i] = init_strength
         elif i < zero_number[1]:  # 刚开始一截不完整滞回环的线性插值，外插
             degraded_stiff[i] = (Periodic_cycle_degraded_strength[0] +
@@ -114,7 +119,8 @@ if True:
                                  (cumulative_deformation[i] - cumulative_deformation[Periodic_cycle_point[-2]]))
         elif i in zero_number[1::2]:  # 完整滞回环的线性插值，内插，每两个零点处的强度退化值不需要内插
             degraded_stiff[i] = Periodic_cycle_degraded_strength[tag]
-            tag += 1
+            if i >= init_strength_number:
+                tag += 1
         else:  # 完整滞回环的线性插值，内插，每两个零点处的强度退化值不需要内插
             degraded_stiff[i] = (Periodic_cycle_degraded_strength[tag - 1] +
                                  (Periodic_cycle_degraded_strength[tag - 1] - Periodic_cycle_degraded_strength[tag]) /
@@ -126,8 +132,8 @@ if True:
     print("degraded_stiff:{}".format(degraded_stiff))
     print("initial_stiff:{}".format(initial_stiff))
 
-    for i in range(len(force)):
-        print("退化强度：{}，时间戳：{},累计位移：{}".format(degraded_stiff[i], time_index[i], cumulative_deformation[i]))
+    # for i in range(len(force)):
+    #     print("退化强度：{}，时间戳：{},累计位移：{}".format(degraded_stiff[i], time_index[i], cumulative_deformation[i]))
     '''数据可视化'''
-    plt.scatter(time_index, degraded_stiff)
+    plt.scatter(cumulative_deformation, degraded_stiff)
     plt.show()
