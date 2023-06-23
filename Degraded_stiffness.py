@@ -90,7 +90,7 @@ if True:
                                  (cumulative_deformation[Periodic_cycle_point[0]] - cumulative_deformation[
                                      Periodic_cycle_point[1]]) *
                                  (cumulative_deformation[i] - cumulative_deformation[Periodic_cycle_point[0]]))
-        elif i > zero_number[-1]:  # 最后一截不完整滞回环的线性插值，外插
+        elif i > zero_number[-1]:  # 最后一截不完整滞回环的线性插值，外插，该试件零点总数为42个刚好是偶数
             degraded_stiff[i] = (Periodic_cycle_degraded_stiffness[-2] +
                                  (Periodic_cycle_degraded_stiffness[-2] - Periodic_cycle_degraded_stiffness[-1]) /
                                  (cumulative_deformation[Periodic_cycle_point[-2]] - cumulative_deformation[
@@ -110,8 +110,8 @@ if True:
     print("degraded_stiff:{}".format(degraded_stiff))
     print("initial_stiff:{}".format(initial_stiff))
 
-    for i in range(len(force)):
-        print("退化刚度：{}，时间戳：{},累计位移：{}".format(degraded_stiff[i],time_index[i],cumulative_deformation[i]))
+    # for i in range(len(force)):
+    #     print("退化刚度：{}，时间戳：{},累计位移：{}".format(degraded_stiff[i],time_index[i],cumulative_deformation[i]))
     '''数据可视化'''
     plt.scatter(cumulative_deformation, degraded_stiff)
     plt.show()
