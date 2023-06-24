@@ -12,7 +12,7 @@ time_index = np.loadtxt(InputName, delimiter=',', skiprows=1, usecols=2)
 
 # 因为自己手动将数据合在一块儿了，所以不用编写generate_txt部分代码来进行数据预处理
 if True:
-    initial_stiff = np.abs((force[1]-force[0])/(displace[1]-displace[0]))
+    initial_stiff = np.abs((force[1] - force[0]) / (displace[1] - displace[0]))
     degraded_stiff = [None] * len(force)  # 定义一个空列表，用于后边存放退化刚度
 
     '''计算翻转点'''
@@ -33,10 +33,9 @@ if True:
 
 
     # 计算翻转点
-    for i in range(0, len(displace) - 1):
+    for i in range(1, len(displace) - 1):
         if np.abs(displace[i]) > np.abs(displace[i + 1]) and np.abs(displace[i]) > np.abs(displace[i - 1]):
             reversal_point(i)
-
     # print("翻转点的序号为{}".format(reverse_number))
     # print("翻转点的位移值为{}".format(reverse_disp))
     print("翻转点的力值为{}".format(reverse_force))
@@ -66,20 +65,21 @@ if True:
     print("滞回曲线的零点总数为{}".format(len(zero_number)))
 
     '''计算每一圈退化刚度，还是有点儿问题，退化刚度并不是递减的,是实验数据的问题'''
-    Periodic_cycle_point = reverse_number[::2]  # 每两个翻转点提取出第一个点
+    Periodic_cycle_point = reverse_number[1::2]  # 每两个翻转点提取出第一个点
     Periodic_cycle_degraded_stiffness = []  # 用于存储每一圈的退化刚度
     print("存在滞回环的数量为{}个".format(len(Periodic_cycle_point)))
 
-    for i in Periodic_cycle_point:
+    for i in range(len(Periodic_cycle_point)):
         Periodic_cycle_degraded_stiffness.append(
-            (np.abs(force[i]) + np.abs(force[i + 1])) / (np.abs(displace[i]) + np.abs(displace[i + 1])))
+            (np.abs(force[reverse_number[2 * i + 1]]) + np.abs(force[reverse_number[2 * i]])) / (
+                    np.abs(displace[reverse_number[2 * i + 1]]) + np.abs(displace[reverse_number[2 * i]])))
     print("退化刚度数量:{}(主要用于验证）".format(len(Periodic_cycle_degraded_stiffness)))
     print("退化刚度:{}".format(Periodic_cycle_degraded_stiffness))
 
     '''计算累计位移'''
     cumulative_deformation = [0]
     for i in range(1, len(force)):
-        cumulative_deformation.append(cumulative_deformation[i - 1] + np.abs(displace[i]))
+        cumulative_deformation.append(cumulative_deformation[i - 1] + np.abs(displace[i] - displace[i - 1]))
 
     # 线性插值得到每个点处的退化刚度
     tag = 0
@@ -112,6 +112,14 @@ if True:
 
     # for i in range(len(force)):
     #     print("退化刚度：{}，时间戳：{},累计位移：{}".format(degraded_stiff[i],time_index[i],cumulative_deformation[i]))
+
     '''数据可视化'''
+    # 设置坐标轴名称
+    plt.xlabel('cumulative deformation(mm)')
+    # plt.xlabel('time_index')
+    plt.ylabel('degraded stiff(KN/mm)')
+    # parameter = np.polyfit(cumulative_deformation, degraded_stiff, 8)  # 用8次函数进行拟合
+    # p = np.poly1d(parameter)
     plt.scatter(cumulative_deformation, degraded_stiff)
+    # plt.plot(cumulative_deformation, p(cumulative_deformation), color='g')
     plt.show()
