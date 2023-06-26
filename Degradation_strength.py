@@ -17,7 +17,7 @@ save_dir = True
 target_dir = r"E:\Code\Image regression\data\degraded_strength.csv"
 
 # 因为自己手动将数据合在一块儿了，所以不用编写generate_txt部分代码来进行数据预处理
-if True:
+if __name__ == '__main__':
     initial_strength = np.abs((force[1] - force[0]) / (displace[1] - displace[0]))
     degraded_strength = [None] * len(force)  # 定义一个空列表，用于后边存放退化强度
 
@@ -139,10 +139,10 @@ if True:
     plt.xlabel('cumulative deformation(mm)')
     # plt.xlabel('time_index')
     plt.ylabel('degraded strength(KN/mm)')
-    parameter = np.polyfit(cumulative_deformation, degraded_strength, 4)  # 用8次函数进行拟合
-    p = np.poly1d(parameter)
+    # parameter = np.polyfit(cumulative_deformation, degraded_strength, 4)  # 用8次函数进行拟合
+    # p = np.poly1d(parameter)
     plt.scatter(cumulative_deformation, degraded_strength)
-    plt.plot(cumulative_deformation, p(cumulative_deformation), color='g')
+    # plt.plot(cumulative_deformation, p(cumulative_deformation), color='g')
     plt.show()
 
     # 结果保存
