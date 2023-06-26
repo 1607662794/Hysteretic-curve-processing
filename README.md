@@ -1,6 +1,6 @@
 # Hysteretic curve processing
 
-**characteristic_engineering.py**文件用于实现特征工程，其输入文件为提取出力-位移数据的txt文件，输出数据为**characteristic_curve.csv**文件，里面包含着累计位移与累计耗能的数据值下面为其生成的文件
+**characteristic_engineering.py**文件用于实现特征工程，其输入文件为提取出力-位移数据的txt文件，输出数据为
 
 **file.py**文件为提取力与位移，并且将图片路径提取出来的文件
 
@@ -14,7 +14,13 @@
 
 ![	](C:\Users\admin\AppData\Local\Temp\WeChat Files\7c02f6ff15a63e7c1afbaad68027ab1.png)![d8a97f38b2cb8f244d9eb497e9fbfcf](C:\Users\admin\AppData\Local\Temp\WeChat Files\d8a97f38b2cb8f244d9eb497e9fbfcf.png)
 
+**Degradation_strength.py**：退化强度计算，计算依理论放置于Notion中https://www.notion.so/0d58a52d011445369d7d0ab8c1cf045b?pvs=4
+
+**Park-Ang damage model.py**：损伤指标计算，依据Park-Ang损伤模型公式计算
+
 ------
+
+**characteristic_curve.csv**文件，里面包含着累计位移与累计耗能的数据值下面为其生成的文件
 
 **stiffness.csv：**RS1的力位移时间数据，时间由excel计算而来
 
