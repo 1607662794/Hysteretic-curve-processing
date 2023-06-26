@@ -1,4 +1,6 @@
 '''该文件用于计算滞回曲线的退化刚度'''
+import pandas as pd
+
 '''其实更好的方式是定义一个数据结构，用于存放四种数据，序号，力，位移以及时间'''
 
 import numpy as np
@@ -10,6 +12,9 @@ displace = np.loadtxt(InputName, delimiter=',', skiprows=1, usecols=0)
 force = np.loadtxt(InputName, delimiter=',', skiprows=1, usecols=1)
 time_index = np.loadtxt(InputName, delimiter=',', skiprows=1, usecols=2)
 
+#结果保存设置
+save_dir =True
+target_dir = r"E:\Code\Image regression\data\degraded_stiffness.csv"
 # 因为自己手动将数据合在一块儿了，所以不用编写generate_txt部分代码来进行数据预处理
 if True:
     initial_stiff = np.abs((force[1] - force[0]) / (displace[1] - displace[0]))
@@ -123,3 +128,8 @@ if True:
     plt.scatter(cumulative_deformation, degraded_stiff)
     # plt.plot(cumulative_deformation, p(cumulative_deformation), color='g')
     plt.show()
+
+    # 结果保存
+    if save_dir:
+        label = pd.DataFrame({'cumulative deformation(mm)': cumulative_deformation, 'degraded stiff(KN/mm)': degraded_stiff})
+        label.to_csv(target_dir, index=None)
