@@ -17,7 +17,7 @@ save_dir = True
 target_dir = r"E:\Code\Image regression\data\degraded_stiffness.csv"
 
 # 因为自己手动将数据合在一块儿了，所以不用编写generate_txt部分代码来进行数据预处理
-if True:
+if __name__ == '__main__':
     initial_stiff = np.abs((force[1] - force[0]) / (displace[1] - displace[0]))
     degraded_stiff = [None] * len(force)  # 定义一个空列表，用于后边存放退化刚度
 
