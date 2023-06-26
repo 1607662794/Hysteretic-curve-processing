@@ -1,4 +1,6 @@
 '''该文件用于计算滞回曲线的退化强度'''
+import pandas as pd
+
 '''其实更好的方式是定义一个数据结构，用于存放四种数据，序号，力，位移以及时间'''
 
 import numpy as np
@@ -10,10 +12,14 @@ displace = np.loadtxt(InputName, delimiter=',', skiprows=1, usecols=0)
 force = np.loadtxt(InputName, delimiter=',', skiprows=1, usecols=1)
 time_index = np.loadtxt(InputName, delimiter=',', skiprows=1, usecols=2)
 
+# 结果保存设置
+save_dir = True
+target_dir = r"E:\Code\Image regression\data\degraded_strength.csv"
+
 # 因为自己手动将数据合在一块儿了，所以不用编写generate_txt部分代码来进行数据预处理
 if True:
-    initial_stiff = np.abs((force[1] - force[0]) / (displace[1] - displace[0]))
-    degraded_stiff = [None] * len(force)  # 定义一个空列表，用于后边存放退化强度
+    initial_strength = np.abs((force[1] - force[0]) / (displace[1] - displace[0]))
+    degraded_strength = [None] * len(force)  # 定义一个空列表，用于后边存放退化强度
 
     '''计算翻转点'''
     '''当一个点的横坐标绝对值比其上一个点和其下一个点都小时，这个点即为翻转点，根据每两个翻转点计算每一圈的退化强度，退化强度是针对一个滞回环而言的，从横坐标出发到横坐标'''
@@ -99,42 +105,48 @@ if True:
     tag = abs_value(Periodic_cycle_degraded_strength)
     for i in range(len(force)):
         if i <= init_strength_number:
-            degraded_stiff[i] = init_strength
+            degraded_strength[i] = init_strength
         elif i < zero_number[1]:  # 刚开始一截不完整滞回环的线性插值，外插
-            degraded_stiff[i] = (Periodic_cycle_degraded_strength[0] +
+            degraded_strength[i] = (Periodic_cycle_degraded_strength[0] +
                                  (Periodic_cycle_degraded_strength[0] - Periodic_cycle_degraded_strength[1]) /
                                  (cumulative_deformation[Periodic_cycle_point[0]] - cumulative_deformation[
                                      Periodic_cycle_point[1]]) *
                                  (cumulative_deformation[i] - cumulative_deformation[Periodic_cycle_point[0]]))
         elif i > zero_number[-1]:  # 最后一截不完整滞回环的线性插值，外插
-            degraded_stiff[i] = (Periodic_cycle_degraded_strength[-2] +
+            degraded_strength[i] = (Periodic_cycle_degraded_strength[-2] +
                                  (Periodic_cycle_degraded_strength[-2] - Periodic_cycle_degraded_strength[-1]) /
                                  (cumulative_deformation[Periodic_cycle_point[-2]] - cumulative_deformation[
                                      Periodic_cycle_point[-1]]) *
                                  (cumulative_deformation[i] - cumulative_deformation[Periodic_cycle_point[-2]]))
         elif i in zero_number[1::2]:  # 完整滞回环的线性插值，内插，每两个零点处的强度退化值不需要内插
-            degraded_stiff[i] = Periodic_cycle_degraded_strength[tag + 1]
+            degraded_strength[i] = Periodic_cycle_degraded_strength[tag + 1]
             tag += 1
         else:  # 完整滞回环的线性插值，内插，每两个零点处的强度退化值不需要内插
-            degraded_stiff[i] = (Periodic_cycle_degraded_strength[tag] +
+            degraded_strength[i] = (Periodic_cycle_degraded_strength[tag] +
                                  (Periodic_cycle_degraded_strength[tag + 1] - Periodic_cycle_degraded_strength[tag]) /
                                  (cumulative_deformation[Periodic_cycle_point[tag + 1]] - cumulative_deformation[
                                      Periodic_cycle_point[tag]]) *
                                  (cumulative_deformation[i] - cumulative_deformation[Periodic_cycle_point[tag]]))
 
-    print("退化刚度的数量是散点的数量".format(len(degraded_stiff)))
-    print("degraded_stiff:{}".format(degraded_stiff))
-    print("initial_stiff:{}".format(initial_stiff))
+    print("退化强度的数量是散点的数量".format(len(degraded_strength)))
+    print("degraded_strength:{}".format(degraded_strength))
+    print("initial_strength:{}".format(initial_strength))
 
     # for i in range(len(force)):
-    #     print("退化强度：{}，时间戳：{},累计位移：{}".format(degraded_stiff[i], time_index[i], cumulative_deformation[i]))
+    #     print("退化强度：{}，时间戳：{},累计位移：{}".format(degraded_strength[i], time_index[i], cumulative_deformation[i]))
     '''数据可视化'''
     # 设置坐标轴名称
     plt.xlabel('cumulative deformation(mm)')
     # plt.xlabel('time_index')
-    plt.ylabel('degraded stiff(KN/mm)')
-    parameter = np.polyfit(cumulative_deformation, degraded_stiff, 4)  # 用8次函数进行拟合
+    plt.ylabel('degraded strength(KN/mm)')
+    parameter = np.polyfit(cumulative_deformation, degraded_strength, 4)  # 用8次函数进行拟合
     p = np.poly1d(parameter)
-    plt.scatter(cumulative_deformation, degraded_stiff)
+    plt.scatter(cumulative_deformation, degraded_strength)
     plt.plot(cumulative_deformation, p(cumulative_deformation), color='g')
     plt.show()
+
+    # 结果保存
+    if save_dir:
+        label = pd.DataFrame(
+            {'cumulative deformation(mm)': cumulative_deformation, 'degraded strength(KN)': degraded_strength})
+        label.to_csv(target_dir, index=None)
