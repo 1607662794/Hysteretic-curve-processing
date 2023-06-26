@@ -2,6 +2,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 '''该文件用于计算滞回曲线中每个点的损伤指标，计算模型为park-ang'''
+'''最后可以生成五种图表，分别对应
+    graph_1 ： 绘制滞回曲线以及其上的翻转点；
+    graph_2 ：绘制能量曲线（没有实际意义，只是将横纵坐标值相乘，这样可以实现递增的效果）
+    graph_3 ： 绘制骨架曲线，该骨架曲线上标出利用park——ang损伤模型公式所用到的参数，等效屈服点；
+    graph_4 ：绘制累计滞回耗能通过计算每一圈的耗能，然后进行线性插值，得到每个点上的耗能；
+    graph_5 ： 绘制损伤指标曲线，通过park——ang损伤模型计算损伤指标，并输出'''
 
 # 先导入文件，提取力、位移数据
 InputName = r"E:\Code\Hysteretic curve processing\data_new\RS3.csv"
@@ -10,17 +16,17 @@ force = np.loadtxt(InputName, delimiter=',', skiprows=1, usecols=1)
 print(displace.shape, force.shape)
 print(type(displace), type(force))
 
-# 计算零点：该点与上一个点的乘积为负，将滞回曲线分解成上下部分
-zero_point = []
+# 计算零点：因其在横坐标附近有波动，不能用前一个坐标与当前坐标的乘积为负值来计算
+zero_disp = []
 zero_number = []
-for i in range(1, len(displace) - 1):  # 坐标原点不需要对其进行判断
-    if force[i] * force[i + 1] <= 0:
-        zero_point.append(displace[i + 1])
-        zero_number.append(i + 1)
-print("滞回曲线的零点横坐标为{}".format(zero_point))
+for i in range(1, len(displace) - 1):
+    if np.abs(force[i]) < 1:
+        zero_disp.append(displace[i])
+        zero_number.append(i)
 print("滞回曲线的零点序号为{}".format(zero_number))
+print("滞回曲线的零点数量为{}".format(len(zero_disp)))
 
-# 计算翻转点：当一个点的横坐标绝对值比其上一个点和其下一个点都小时，这个点即为翻转点，通过翻转点分解滞回环，对每个分段上的点进行近似积分求和
+# 计算翻转点：当一个点的横坐标绝对值比其上一个点和其下一个点都小时，这个点即为翻转点
 reverse_disp = []
 reverse_force = []
 reverse_number = []
@@ -46,30 +52,68 @@ print("翻转点的位移值为{}".format(reverse_disp))
 print("翻转点的力值为{}".format(reverse_force))
 print("翻转点的序号为{}".format(reverse_number))
 
-# 并根据翻转点（甚至都不需要用到翻转点，卧槽, 因为翻转点处总会存在一个点，而我是用点来进行离散积分的），求累计变形与累计能量图
-cumulative_energy = [0]
+# 计算累计位移
 cumulative_deformation = [0]
+for i in range(1, len(force)):
+    cumulative_deformation.append(cumulative_deformation[i - 1] + np.abs(displace[i] - displace[i - 1]))
 
 
-def deformation_energy(point):
-    for i in range(1, point):  # i为第几个点
-        increment_deformation = np.abs(displace[i] - displace[i - 1])
-        cumulative_deformation.append(cumulative_deformation[i - 1] + increment_deformation)
+# 计算指定初始点与结束点之间曲线与横坐标围成的面积
+def consumption_energy(start_point, end_point):
+    cumulative_energy = 0
+    for i in range(start_point, end_point):
+        increment_deformation = displace[i+1] - displace[i]
         # 对于两点之间存在零点的情况，分别进行处理
         if i in zero_number:
             # i点与i-1点之间的存在零点，part-deformation为前半段长度
-            part_deformation = np.abs(force[i - 1]) / (np.abs(force[i - 1]) + np.abs(force[i])) * increment_deformation
-            increment_energy = 0.5 * part_deformation * np.abs(force[i - 1]) + 0.5 * (
-                    increment_deformation - part_deformation) * np.abs(force[i])
-            cumulative_energy.append(cumulative_energy[i - 1] + increment_energy)
+            part_deformation = np.abs(force[i]) / (np.abs(force[i]) + np.abs(force[i + 1])) * increment_deformation
+            increment_energy = 0.5 * part_deformation * force[i] + 0.5 * (
+                    increment_deformation - part_deformation) * force[i + 1]
+            cumulative_energy += increment_energy
         else:
-            increment_energy = 0.5 * increment_deformation * (np.abs(force[i - 1]) + np.abs(force[i]))
-            cumulative_energy.append(cumulative_energy[i - 1] + increment_energy)
+            increment_energy = 0.5 * increment_deformation * (force[i] + force[i+1])
+            cumulative_energy += increment_energy
+    return cumulative_energy
 
 
-deformation_energy(len(displace))
-print("累计位移{}".format(cumulative_deformation))
-print("累计能量{}".format(cumulative_energy))
+# 将计算所得每一圈的耗能分配给每一圈的零点
+periodic_cycle_number = zero_number[1::2]  # 每两个翻转点提取出第一个点
+periodic_cycle_consumption_energy = []  # 用于存储每一圈的退化刚度
+print("存在滞回环的数量为{}个".format(len(periodic_cycle_number)))
+
+periodic_cycle_consumption_energy.append(consumption_energy(0, periodic_cycle_number[0]))  # 第一个圈比较特殊，是从0点开始的，所以单独列出来
+for i in range(len(periodic_cycle_number) - 1):
+    periodic_cycle_consumption_energy.append(consumption_energy(periodic_cycle_number[i], periodic_cycle_number[i + 1]))
+print("耗能数量:{}(主要用于验证）".format(len(periodic_cycle_consumption_energy)))
+print("每圈耗能:{}".format(periodic_cycle_consumption_energy))
+
+# 根据零点将耗能分配给每一个点：线性插值
+tag = 0
+cumulative_hysteretic_energy_consumption = [None] * len(force)  # 定义一个空列表，用于后边存放退化刚度
+for i in range(len(force)):
+    if i < zero_number[1]:  # 刚开始一截不完整滞回环的线性插值，外插
+        cumulative_hysteretic_energy_consumption[i] = (periodic_cycle_consumption_energy[0] +
+                             (periodic_cycle_consumption_energy[0] - periodic_cycle_consumption_energy[1]) /
+                             (cumulative_deformation[periodic_cycle_number[0]] - cumulative_deformation[
+                                 periodic_cycle_number[1]]) *
+                             (cumulative_deformation[i] - cumulative_deformation[periodic_cycle_number[0]]))
+    elif i > zero_number[-1]:  # 最后一截不完整滞回环的线性插值，外插，该试件零点总数为42个刚好是偶数
+        cumulative_hysteretic_energy_consumption[i] = (periodic_cycle_consumption_energy[-2] +
+                             (periodic_cycle_consumption_energy[-2] - periodic_cycle_consumption_energy[-1]) /
+                             (cumulative_deformation[periodic_cycle_number[-2]] - cumulative_deformation[
+                                 periodic_cycle_number[-1]]) *
+                             (cumulative_deformation[i] - cumulative_deformation[periodic_cycle_number[-2]]))
+    elif i in zero_number[1::2]:  # 完整滞回环的线性插值，内插，每两个零点处的刚度退化值不需要内插
+        cumulative_hysteretic_energy_consumption[i] = periodic_cycle_consumption_energy[tag]
+        tag += 1
+    else:  # 完整滞回环的线性插值，内插，每两个零点处的刚度退化值不需要内插
+        cumulative_hysteretic_energy_consumption[i] = (periodic_cycle_consumption_energy[tag - 1] +
+                             (periodic_cycle_consumption_energy[tag - 1] - periodic_cycle_consumption_energy[tag]) /
+                             (cumulative_deformation[periodic_cycle_number[tag - 1]] - cumulative_deformation[
+                                 periodic_cycle_number[tag]]) *
+                             (cumulative_deformation[i] - cumulative_deformation[periodic_cycle_number[tag - 1]]))
+print("累计滞回耗能数量：{}".format(len(cumulative_hysteretic_energy_consumption) == len(force)))
+print("cumulative_hysteretic_energy_consumption:{}".format(cumulative_hysteretic_energy_consumption))
 
 # 计算骨架曲线：连接各翻转点即为骨架曲线（正规的翻转点应为最大力值与最大位移值，因为数据稀疏的原因，在我的数据库中，这两个值对应的点并不一致，
 # 因此我只能选其一，即选择最大位移值），唯一需要更改的地方在于翻转点的顺序
@@ -91,7 +135,6 @@ for i in sorted(bone_curve.keys()):
     if i == peak_disp:
         bone_max_number = j - 1  # 骨架曲线正向中的最大值序号
 
-
 # 根据能量原理求出等效屈服点和屈服位移
 # 计算出能量总量
 energy = 0
@@ -109,17 +152,24 @@ for i in range(len(bone_curve) - 1):
         yield_disp = ((bone_disp[i + 1] - bone_disp[i]) / (bone_force[i + 1] - bone_force[i]) * bone_force[i] -
                       bone_disp[i]) / \
                      ((bone_disp[i + 1] - bone_disp[i]) / (bone_force[i + 1] - bone_force[i]) * (
-                                 peak_force / equivalent_disp) - 1)
+                             peak_force / equivalent_disp) - 1)
         yield_force = peak_force / equivalent_disp * yield_disp
         break
 print("屈服位移{}".format(yield_disp))
 print("屈服荷载{}".format(yield_force))
 
+# 计算损伤因子
+damage_index = []
+for i in range(len(force)):
+    damage_index.append(1 + 0.15*cumulative_hysteretic_energy_consumption[i]/(yield_force*yield_disp))
+
 
 # 绘制可视化图表
 graph_1 = False  # 绘制滞回曲线
-graph_2 = False  # 绘制累计耗能曲线
-graph_3 = True  # 绘制骨架曲线
+graph_2 = False  # 绘制能量曲线
+graph_3 = False  # 绘制骨架曲线
+graph_4 = False  # 绘制累计滞回耗能
+graph_5 = True  # 绘制损伤指标曲线
 
 if graph_1:
     # 绘制滞回曲线
@@ -141,7 +191,7 @@ if graph_1:
     # plt.savefig(r'E:\研究生\科研生活\滞回曲线实操\数据库-new\Shear_compression_tests\RS1\滞回曲线.jpg')
 
 if graph_2:
-    # 绘制累计耗能曲线
+    # 绘制能量曲线
     plt.xlabel("cumulative_deformation(mm)")
     plt.ylabel("cumulative_energy(J)")
     plt.plot(cumulative_deformation, cumulative_energy)
@@ -172,3 +222,29 @@ if graph_3:
     plt.title("骨架曲线")
     # plt.savefig(r'E:\研究生\科研生活\滞回曲线实操\数据库-new\Shear_compression_tests\RS1\特征曲线.jpg')
     plt.show()
+
+if graph_4:
+    # 绘制累计滞回耗能曲线，观察滞回曲线图你会发现，确实是每两个圈作为一组进行递增的，符合预期
+    plt.xlabel("cumulative_deformation(mm)")
+    plt.ylabel("cumulative_hysteretic_energy_consumption(J)")
+    plt.plot(cumulative_deformation, cumulative_hysteretic_energy_consumption)
+    plt.scatter(cumulative_deformation, cumulative_hysteretic_energy_consumption, s=20, c='orange', marker='x')
+    plt.rcParams['font.sans-serif'] = ['SimHei']  # 显示中文标签
+    plt.rcParams['axes.unicode_minus'] = False
+    plt.title("累计滞回耗能曲线")
+    plt.show()
+
+if graph_5:
+    # 绘制损伤指标曲线
+    plt.xlabel("cumulative_deformation(mm)")
+    plt.ylabel("damage_index")
+    plt.plot(cumulative_deformation, damage_index)
+    plt.scatter(cumulative_deformation, damage_index, s=20, c='orange', marker='x')
+    parameter = np.polyfit(cumulative_deformation, damage_index, 8)  # 用8次函数进行拟合
+    p = np.poly1d(parameter)
+    plt.plot(cumulative_deformation, p(cumulative_deformation), color='g')
+    plt.rcParams['font.sans-serif'] = ['SimHei']  # 显示中文标签
+    plt.rcParams['axes.unicode_minus'] = False
+    plt.title("损伤指标曲线")
+    plt.show()
+
