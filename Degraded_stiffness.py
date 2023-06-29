@@ -12,8 +12,13 @@ displace = np.loadtxt(InputName, delimiter=',', skiprows=1, usecols=0)
 force = np.loadtxt(InputName, delimiter=',', skiprows=1, usecols=1)
 time_index = np.loadtxt(InputName, delimiter=',', skiprows=1, usecols=2)
 
+dir_predict = r'E:\Code\Image regression\data\data_predict.csv'
+pre_x = np.loadtxt(dir_predict, delimiter=',', skiprows=1, usecols=1)
+pre_y = np.loadtxt(dir_predict, delimiter=',', skiprows=1, usecols=2)
+
 # 结果保存设置
-save_dir = True
+save_dir = False
+show_predict = True
 target_dir = r"E:\Code\Image regression\data\degraded_stiffness.csv"
 
 # 因为自己手动将数据合在一块儿了，所以不用编写generate_txt部分代码来进行数据预处理
@@ -127,7 +132,9 @@ if __name__ == '__main__':
     # parameter = np.polyfit(cumulative_deformation, degraded_stiff, 8)  # 用8次函数进行拟合
     # p = np.poly1d(parameter)
     plt.scatter(cumulative_deformation, degraded_stiff)
-    # plt.plot(cumulative_deformation, p(cumulative_deformation), color='g')
+    if show_predict:
+        # 展示预测点
+        plt.scatter(pre_x, pre_y, color='red')
     plt.show()
 
     # 结果保存
