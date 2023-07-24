@@ -1,29 +1,45 @@
 '''该文件用于计算滞回曲线的退化刚度'''
 import pandas as pd
-
-'''其实更好的方式是定义一个数据结构，用于存放四种数据，序号，力，位移以及时间'''
-
+from scipy.interpolate import CubicSpline
 import numpy as np
 from matplotlib import pyplot as plt
 
-# 加载数据
-InputName = r"E:\Code\Hysteretic curve processing\data_new\RS3.csv"
-displace = np.loadtxt(InputName, delimiter=',', skiprows=1, usecols=0)
-force = np.loadtxt(InputName, delimiter=',', skiprows=1, usecols=1)
-time_index = np.loadtxt(InputName, delimiter=',', skiprows=1, usecols=2)
-
-dir_predict = r'E:\Code\Image regression\data\data_predict.csv'
-pre_x = np.loadtxt(dir_predict, delimiter=',', skiprows=1, usecols=1)
-pre_y = np.loadtxt(dir_predict, delimiter=',', skiprows=1, usecols=2)
-
 # 结果保存设置
-save_dir = False
-show_predict = True
-target_dir = r"E:\Code\Image regression\data\degraded_stiffness.csv"
+save_dir = True  # 是否保存累计位移与刚度退化
+target_dir = r"sampling_data/degraded_stiff_all.csv"
+pre = "multi_task"  # 设置预测点事单任务训练还是多任务训练的single_task/multi_task
+show_predict = False  # 是否展示测试集预测点
+show_point_predict = False  # 是否展示抽取的一个预测点位置，注意，这个最好和上一逻辑值相反
 
-# 因为自己手动将数据合在一块儿了，所以不用编写generate_txt部分代码来进行数据预处理
+# 插值方式选取
+interpolation_method = "linear interpolation"  # 插值方式spline interpolation（三次插值）/linear interpolation（线性插值）
+
+# 是否打印周期点数据
+period_print = False
+
+# 加载数据
+# 使用genfromtxt函数加载CSV文件
+Input_dir = r"E:\Code\Hysteretic curve processing\sampling_data\RS3.csv"  # 原数据
+Input_pic_dir = r"E:\Code\Hysteretic curve processing\data_new\RS3.csv"  # 经过处理后的拥有图片部分的数据
+data = np.genfromtxt(Input_dir, delimiter=',', skip_header=1,
+                     dtype=[('image_names', 'U50'), ('u [mm]', float), ('Fh [kN]', float)])
+
+# 获取加载后的数据
+image_names = data['image_names']
+displace = data['u_mm']
+force = data['Fh_kN']
+
+# 预测文件加载
+if pre == 'multi_task':
+    dir_predict = r'E:\Code\Image regression\data\data_multi_task_predict.csv'  # 多任务预测数据
+    pre_x = np.loadtxt(dir_predict, delimiter=',', skiprows=1, usecols=1)
+    pre_y = np.loadtxt(dir_predict, delimiter=',', skiprows=1, usecols=2)
+else:
+    dir_predict = r'E:\Code\Image regression\data\data_stiff_predict.csv'  # 单任务预测数据
+    pre_x = np.loadtxt(dir_predict, delimiter=',', skiprows=1, usecols=1)
+    pre_y = np.loadtxt(dir_predict, delimiter=',', skiprows=1, usecols=2)
+
 if __name__ == '__main__':
-    initial_stiff = np.abs((force[1] - force[0]) / (displace[1] - displace[0]))
     degraded_stiff = [None] * len(force)  # 定义一个空列表，用于后边存放退化刚度
 
     '''计算翻转点'''
@@ -31,7 +47,6 @@ if __name__ == '__main__':
     reverse_number = []
     reverse_disp = []
     reverse_force = []
-    reverse_time = []
 
 
     # 记录翻转点信息函数
@@ -40,17 +55,27 @@ if __name__ == '__main__':
         reverse_number.append(point)
         reverse_disp.append(displace[point])
         reverse_force.append(force[point])
-        reverse_time.append(time_index[point])
+
+
+    # 如果仅仅根据位移绝对值大小判断翻转点的时候，会发现，在滞回曲线一角存在多个翻转点的情况，
+    # 因此我根据每一次一侧只能有一个翻转点的条件将已记录的翻转点信息进行删选
+    def delete_elements(lst, lst1, lst2):
+        i = 0
+        while i < len(lst) - 1:
+            if lst[i] * lst[i + 1] > 0:
+                lst.pop(i + 1)  # 删除乘积中的第二个元素
+                lst1.pop(i + 1)
+                lst2.pop(i + 1)
+            else:
+                i += 1  # 乘积为负或零，继续检查下一组相邻元素
 
 
     # 计算翻转点
     for i in range(1, len(displace) - 1):
         if np.abs(displace[i]) > np.abs(displace[i + 1]) and np.abs(displace[i]) > np.abs(displace[i - 1]):
             reversal_point(i)
-    # print("翻转点的序号为{}".format(reverse_number))
-    # print("翻转点的位移值为{}".format(reverse_disp))
-    print("翻转点的力值为{}".format(reverse_force))
-    # print("翻转点的时刻为{}".format(reverse_time))
+    delete_elements(reverse_disp, reverse_number, reverse_force)
+
     print("不包括起始点与最终点的翻转点{}".format(reverse_number))
     print("不包括起始点与最终点的翻转点数量有{}个".format(len(reverse_number)))
 
@@ -58,7 +83,6 @@ if __name__ == '__main__':
     zero_number = []
     zero_disp = []
     zero_force = []
-    zero_time = []
 
 
     def zero_point(point):
@@ -66,7 +90,6 @@ if __name__ == '__main__':
         zero_number.append(point)
         zero_disp.append(displace[point])
         zero_force.append(force[point])
-        zero_time.append(time_index[point])
 
 
     for i in range(1, len(displace) - 1):  # 坐标原点不需要对其进行判断
@@ -75,8 +98,19 @@ if __name__ == '__main__':
     print("滞回曲线各零点的序号为{}".format(zero_number))
     print("滞回曲线的零点总数为{}".format(len(zero_number)))
 
+
+    def abs_value(object):
+        # 找到一个序列中最大值的序号
+        value = object[0]
+        for i in range(len(object)):
+            if abs(value) <= abs(object[i]):
+                j = i
+                value = object[i]
+        return j, value
+
+
     '''计算每一圈退化刚度，还是有点儿问题，退化刚度并不是递减的,是实验数据的问题'''
-    Periodic_cycle_point = reverse_number[1::2]  # 每两个翻转点提取出第一个点
+    Periodic_cycle_point = zero_number[1::2]  # 每两个翻转点提取出第一个点
     Periodic_cycle_degraded_stiffness = []  # 用于存储每一圈的退化刚度
     print("存在滞回环的数量为{}个".format(len(Periodic_cycle_point)))
 
@@ -87,58 +121,120 @@ if __name__ == '__main__':
     print("退化刚度数量:{}(主要用于验证）".format(len(Periodic_cycle_degraded_stiffness)))
     print("退化刚度:{}".format(Periodic_cycle_degraded_stiffness))
 
+    '''计算初始强度以及初始强度零点序号'''
+    tag, init_stiff = abs_value(Periodic_cycle_degraded_stiffness)
+    init_stiff_number = Periodic_cycle_point[tag]
+    print("初始强度为：{}，初始强度零点序号：{}".format(init_stiff, init_stiff_number))
+
     '''计算累计位移'''
     cumulative_deformation = [0]
     for i in range(1, len(force)):
         cumulative_deformation.append(cumulative_deformation[i - 1] + np.abs(displace[i] - displace[i - 1]))
 
-    # 线性插值得到每个点处的退化刚度
-    tag = 0
-    for i in range(len(force)):
-        if i < zero_number[1]:  # 刚开始一截不完整滞回环的线性插值，外插
-            degraded_stiff[i] = (Periodic_cycle_degraded_stiffness[0] +
-                                 (Periodic_cycle_degraded_stiffness[0] - Periodic_cycle_degraded_stiffness[1]) /
-                                 (cumulative_deformation[Periodic_cycle_point[0]] - cumulative_deformation[
-                                     Periodic_cycle_point[1]]) *
-                                 (cumulative_deformation[i] - cumulative_deformation[Periodic_cycle_point[0]]))
-        elif i > zero_number[-1]:  # 最后一截不完整滞回环的线性插值，外插，该试件零点总数为42个刚好是偶数
-            degraded_stiff[i] = (Periodic_cycle_degraded_stiffness[-2] +
-                                 (Periodic_cycle_degraded_stiffness[-2] - Periodic_cycle_degraded_stiffness[-1]) /
-                                 (cumulative_deformation[Periodic_cycle_point[-2]] - cumulative_deformation[
-                                     Periodic_cycle_point[-1]]) *
-                                 (cumulative_deformation[i] - cumulative_deformation[Periodic_cycle_point[-2]]))
-        elif i in zero_number[1::2]:  # 完整滞回环的线性插值，内插，每两个零点处的刚度退化值不需要内插
-            degraded_stiff[i] = Periodic_cycle_degraded_stiffness[tag]
-            tag += 1
-        else:  # 完整滞回环的线性插值，内插，每两个零点处的刚度退化值不需要内插
-            degraded_stiff[i] = (Periodic_cycle_degraded_stiffness[tag - 1] +
-                                 (Periodic_cycle_degraded_stiffness[tag - 1] - Periodic_cycle_degraded_stiffness[tag]) /
-                                 (cumulative_deformation[Periodic_cycle_point[tag - 1]] - cumulative_deformation[
-                                     Periodic_cycle_point[tag]]) *
-                                 (cumulative_deformation[i] - cumulative_deformation[Periodic_cycle_point[tag - 1]]))
-    print(len(degraded_stiff))
+    if interpolation_method == "linear interpolation":
+        # 线性插值得到每个点处的退化刚度
+        for i in range(len(force)):
+            if i <= init_stiff_number:
+                degraded_stiff[i] = init_stiff
+            elif i < zero_number[1]:  # 刚开始一截不完整滞回环的线性插值，外插
+                degraded_stiff[i] = (Periodic_cycle_degraded_stiffness[0] +
+                                     (Periodic_cycle_degraded_stiffness[0] - Periodic_cycle_degraded_stiffness[1]) /
+                                     (cumulative_deformation[Periodic_cycle_point[0]] - cumulative_deformation[
+                                         Periodic_cycle_point[1]]) *
+                                     (cumulative_deformation[i] - cumulative_deformation[Periodic_cycle_point[0]]))
+            elif i > zero_number[-1]:  # 最后一截不完整滞回环的线性插值，外插，该试件零点总数为42个刚好是偶数
+                degraded_stiff[i] = (Periodic_cycle_degraded_stiffness[-2] +
+                                     (Periodic_cycle_degraded_stiffness[-2] - Periodic_cycle_degraded_stiffness[-1]) /
+                                     (cumulative_deformation[Periodic_cycle_point[-2]] - cumulative_deformation[
+                                         Periodic_cycle_point[-1]]) *
+                                     (cumulative_deformation[i] - cumulative_deformation[Periodic_cycle_point[-2]]))
+            elif i in zero_number[1::2]:  # 完整滞回环的线性插值，内插，每两个零点处的刚度退化值不需要内插
+                degraded_stiff[i] = Periodic_cycle_degraded_stiffness[tag + 1]
+                tag += 1
+            else:  # 完整滞回环的线性插值，内插，每两个零点处的刚度退化值不需要内插
+                degraded_stiff[i] = (Periodic_cycle_degraded_stiffness[tag] +
+                                     (Periodic_cycle_degraded_stiffness[tag + 1] - Periodic_cycle_degraded_stiffness[
+                                         tag]) /
+                                     (cumulative_deformation[Periodic_cycle_point[tag + 1]] - cumulative_deformation[
+                                         Periodic_cycle_point[tag]]) *
+                                     (cumulative_deformation[i] - cumulative_deformation[Periodic_cycle_point[tag]]))
+    else:
+        # 三次样条插值
+        # 首先确定已知点
+        known_x = []
+        known_y = []
+        for i in range(len(force)):
+            if i <= init_stiff_number:
+                known_x.append(cumulative_deformation[i])
+                known_y.append(init_stiff)
+            elif i > zero_number[-1]:  # 最后一截不完整滞回环的线性插值，外插
+                known_x.append(cumulative_deformation[i])
+                known_y.append(Periodic_cycle_degraded_stiffness[-2] +
+                               (Periodic_cycle_degraded_stiffness[-2] - Periodic_cycle_degraded_stiffness[-1]) /
+                               (cumulative_deformation[Periodic_cycle_point[-2]] - cumulative_deformation[
+                                   Periodic_cycle_point[-1]]) *
+                               (cumulative_deformation[i] - cumulative_deformation[Periodic_cycle_point[-2]]))
+            elif i in zero_number[1::2]:  # 完整滞回环的线性插值，内插，每两个零点处的强度退化值不需要内插
+                known_x.append(cumulative_deformation[i])
+                known_y.append(Periodic_cycle_degraded_stiffness[tag + 1])
+                tag += 1
 
+        # 横坐标待拟合点
+        x_to_fit = cumulative_deformation
+
+        # 样条插值
+        f = CubicSpline(known_x, known_y)  # k=3表示使用三次样条插值
+        degraded_stiff = f(x_to_fit)
+
+    print(len(degraded_stiff))
     print("degraded_stiff:{}".format(degraded_stiff))
-    print("initial_stiff:{}".format(initial_stiff))
 
     # for i in range(len(force)):
     #     print("退化刚度：{}，时间戳：{},累计位移：{}".format(degraded_stiff[i],time_index[i],cumulative_deformation[i]))
 
     '''数据可视化'''
+    # 添加标题
+    # plt.title('degraded stiff index')
+    plt.title('刚度退化指标')
     # 设置坐标轴名称
-    plt.xlabel('cumulative deformation(mm)')
+    # plt.xlabel('cumulative deformation(mm)')
+    plt.xlabel('累计位移(mm)')
     # plt.xlabel('time_index')
-    plt.ylabel('degraded stiff(KN/mm)')
+    # plt.ylabel('degraded stiff(KN/mm)')
+    plt.ylabel('刚度退化(KN/mm)')
     # parameter = np.polyfit(cumulative_deformation, degraded_stiff, 8)  # 用8次函数进行拟合
     # p = np.poly1d(parameter)
-    plt.scatter(cumulative_deformation, degraded_stiff)
+    s1 = plt.scatter(cumulative_deformation, degraded_stiff, marker='s', edgecolors=['dimgray'])
+    if period_print:
+        cumulative_deformation2 = []
+        for i in range(len(Periodic_cycle_point)):
+            cumulative_deformation2.append(cumulative_deformation[Periodic_cycle_point[i]])
+        s2 = plt.scatter(cumulative_deformation2, Periodic_cycle_degraded_stiffness, marker='s', s=10,
+                         edgecolors=['dimgray'])
+        plt.legend((s1, s2), ('全体值', '周期值'), loc='best')
     if show_predict:
         # 展示预测点
-        plt.scatter(pre_x, pre_y, color='red')
+        s2 = plt.scatter(pre_x, pre_y, c='orange', marker='^', s=50, edgecolors=['dimgray'])
+        # plt.legend((s1, s2), ('true label', 'predict label'), loc='best')
+        plt.legend((s1, s2), ('真实标签', '预测标签'), loc='best')
+
+    if show_point_predict:  # 是否展示其中的某一个点
+        s3 = plt.scatter(pre_x[29], pre_y[29], c='orange', marker='^', s=80, edgecolors=['dimgray'],
+                         label="predict label")
+        # plt.annotate('predict_point', xy=(pre_x[29], pre_y[29]), xytext=(pre_x[29] + 50, pre_y[29] + 10),
+        #              arrowprops=dict(facecolor='black', shrink=0.05, headwidth=10, width=3), )
+        plt.annotate('预测点', xy=(pre_x[29], pre_y[29]), xytext=(pre_x[29] + 50, pre_y[29] + 10),
+                     arrowprops=dict(facecolor='black', shrink=0.05, headwidth=10, width=3), )
+
+        # plt.legend((s1, s3), ('true label', 'predict label'), loc='best')
+        plt.legend((s1, s3), ('真实标签', '预测标签'), loc='best')
+    plt.rcParams['font.sans-serif'] = ['SimHei']  # 显示中文标签
+    plt.rcParams['axes.unicode_minus'] = False
     plt.show()
 
     # 结果保存
     if save_dir:
         label = pd.DataFrame(
-            {'cumulative deformation(mm)': cumulative_deformation, 'degraded stiff(KN/mm)': degraded_stiff})
+            {'image_names': image_names, 'cumulative deformation(mm)': cumulative_deformation,
+             'degraded stiff(KN/mm)': degraded_stiff})
         label.to_csv(target_dir, index=None)
