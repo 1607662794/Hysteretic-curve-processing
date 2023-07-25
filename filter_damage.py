@@ -21,21 +21,29 @@ filtered_df.to_csv(output_file_path, index=False)
 plt.figure(figsize=(10, 6))
 
 # 原图
-plt.scatter(df['cumulative deformation(mm)'], df['damage_index'], label='Original Data', marker='o', s=20)
+plt.scatter(df['cumulative deformation(mm)'], df['damage_index'], label='源数据', marker='o', s=20)
+# plt.scatter(df['cumulative deformation(mm)'], df['damage_index'], label='Original Data', marker='o', s=20)
 
 # 筛选后的图
-plt.scatter(filtered_df['cumulative deformation(mm)'], filtered_df['damage_index'], label='Filtered Data', color='red', marker='x', s=50)
+plt.scatter(filtered_df['cumulative deformation(mm)'], filtered_df['damage_index'], label='过滤数据', color='red', marker='x', s=50)
+# plt.scatter(filtered_df['cumulative deformation(mm)'], filtered_df['damage_index'], label='Filtered Data', color='red', marker='x', s=50)
 
 # 设置标题和标签
-plt.title('damage_index')
-plt.xlabel('cumulative deformation(mm)')
-plt.ylabel('damage_index')
+# plt.title('damage_index')
+# plt.xlabel('cumulative deformation(mm)')
+# plt.ylabel('damage_index')
+plt.title('Park-Ange损伤指标')
+plt.xlabel('累计位移(mm)')
+plt.ylabel('损伤指标')
 
 # 添加网格线
 plt.grid(True, linestyle='--', alpha=0.5)
 
 # 添加图例
 plt.legend()
+
+plt.rcParams['font.sans-serif'] = ['SimHei']  # 显示中文标签
+plt.rcParams['axes.unicode_minus'] = False
 
 # 显示图形
 plt.show()
