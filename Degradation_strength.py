@@ -4,6 +4,9 @@ from scipy.interpolate import CubicSpline
 import numpy as np
 from matplotlib import pyplot as plt
 
+from angle import vector_angle
+from find_max import find_max_abs_force_indices
+
 # 结果保存设置
 save_dir = True  # 是否保存累计位移与强度退化
 target_dir = r"sampling_data/degraded_strength_all.csv"  # 保存承载力计算数据地址
@@ -13,6 +16,9 @@ show_point_predict = False  # 是否展示抽取的一个预测点位置，注�
 
 # 插值方式选取
 interpolation_method = "linear interpolation"  # 插值方式spline interpolation（三次插值）/linear interpolation（线性插值）
+
+# 翻转点的寻找方式
+reverse_method = "force"  # 按照夹角的方式找angle/displace(前后三个点中，中间点的位移绝对值值最大）/force（每个滞回角中力值最大的点）
 
 # 是否打印周期点数据
 period_print = False
@@ -43,6 +49,25 @@ else:
 if __name__ == '__main__':
     degraded_strength = [None] * len(force)  # 定义一个空列表，用于后边存放退化强度
 
+    '''计算每个滞回圈的终点'''
+    zero_number = []
+    zero_disp = []
+    zero_force = []
+
+
+    def zero_point(point):
+        """将对应的点添加到零点列表中"""
+        zero_number.append(point)
+        zero_disp.append(displace[point])
+        zero_force.append(force[point])
+
+
+    for i in range(1, len(displace) - 1):  # 坐标原点不需要对其进行判断
+        if force[i] * force[i + 1] <= 0:
+            zero_point(i)
+    print("滞回曲线各零点的序号为{}".format(zero_number))
+    print("滞回曲线的零点总数为{}".format(len(zero_number)))
+
     '''计算翻转点'''
     '''当一个点的横坐标绝对值比其上一个点和其下一个点都小时，这个点即为翻转点，根据每两个翻转点计算每一圈的退化强度，退化强度是针对一个滞回环而言的，从横坐标出发到横坐标'''
     reverse_number = []
@@ -70,32 +95,42 @@ if __name__ == '__main__':
             else:
                 i += 1  # 乘积为负或零，继续检查下一组相邻元素
 
+    # 翻转点寻找
+    if reverse_method == 'angle':  # 按照夹角的方式进行寻找
+        # 在每一个滞回角找一个夹角最小的点
+        minimum = 180
+        for j in range(1, zero_number[0]):  # 在刚开始的半圈里找到一个夹角最小的值
+            v1 = [displace[j] - displace[j - 1], force[j] - force[j - 1]]
+            v2 = [displace[j] - displace[j + 1], force[j] - force[j + 1]]
+            if vector_angle(v1, v2) < minimum:
+                minimum = vector_angle(v1, v2)
+                minimum_num = j
+        reversal_point(minimum_num)
+        for i in range(len(zero_number) - 1):  # 以零点为索引，找到每一角，夹角最小的点
+            minimum = 180
+            for j in range(zero_number[i] + 1, zero_number[i + 1]):
+                v1 = [displace[j] - displace[j - 1], force[j] - force[j - 1]]
+                v2 = [displace[j] - displace[j + 1], force[j] - force[j + 1]]
+                if vector_angle(v1, v2) < minimum:
+                    # if vector_angle(v1, v2) < minimum and abs(force[j]) > 0.9 * abs(force[j - 1]):
+                    minimum = vector_angle(v1, v2)
+                    minimum_num = j
+            reversal_point(minimum_num)
+    elif reverse_method == 'displace':
+        for i in range(1, len(displace) - 1):
+            if np.abs(displace[i]) > np.abs(displace[i + 1]) and np.abs(displace[i]) > np.abs(displace[i - 1]):
+                reversal_point(i)  # 存在42个翻转点,与零点数量一致
+        delete_elements(reverse_disp, reverse_number, reverse_force)
+    else:
+        segmentation_index = [0] + zero_number
+        max_force_points = find_max_abs_force_indices(force.tolist(), segmentation_index)
+        for i in max_force_points:
+            reversal_point(i)
+    print("翻转点的位移值为{}".format(reverse_disp))
+    print("翻转点的力值为{}".format(reverse_force))
+    print("翻转点的序号为{}".format(reverse_number))
+    print("翻转点数量为{}".format(len(reverse_number)))
 
-    # 计算翻转点
-    for i in range(1, len(displace) - 1):
-        if np.abs(displace[i]) > np.abs(displace[i + 1]) and np.abs(displace[i]) > np.abs(displace[i - 1]):
-            reversal_point(i)  # 存在42个翻转点,与零点数量一致
-    delete_elements(reverse_disp, reverse_number, reverse_force)
-
-    print("不包括起始点与最终点的翻转点{}".format(reverse_number))
-    print("不包括起始点与最终点的翻转点数量有{}个".format(len(reverse_number)))
-
-    '''计算每个滞回圈的终点'''
-    zero_number = []
-    zero_disp = []
-    zero_force = []
-
-    def zero_point(point):
-        """将对应的点添加到零点列表中"""
-        zero_number.append(point)
-        zero_disp.append(displace[point])
-        zero_force.append(force[point])
-
-    for i in range(1, len(displace) - 1):  # 坐标原点不需要对其进行判断
-        if force[i] * force[i + 1] <= 0:
-            zero_point(i)
-    print("滞回曲线各零点的序号为{}".format(zero_number))
-    print("滞回曲线的零点总数为{}".format(len(zero_number)))
 
     '''刚开始没有发生强度退化，因此编写一个计算列表中绝对值最大的函数，该函数返回绝对值最大的序号'''
 
