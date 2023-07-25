@@ -3,15 +3,17 @@ import numpy as np
 import pandas as pd
 from scipy.interpolate import CubicSpline
 
-from demo import vector_angle
+from angle import vector_angle
+from find_max import find_max_abs_force_indices
+from hysteresis_loop import plot_hysteresis_loop
 
 '''该文件用于计算滞回曲线中每个点的损伤指标，计算模型为park-ang'''
 '''最后可以生成五种图表，分别对应
     graph_1 ： 绘制滞回曲线以及其上的翻转点；
-    graph_2 ：绘制能量曲线（没有实际意义，只是将横纵坐标值相乘，这样可以实现递增的效果）
+    graph_2 ：绘制累计滞回耗能通过计算每一圈的耗能，然后进行线性插值和三次样条插值，得到每个点上的耗能；
     graph_3 ： 绘制骨架曲线，该骨架曲线上标出利用park——ang损伤模型公式所用到的参数，等效屈服点；
-    graph_4 ：绘制累计滞回耗能通过计算每一圈的耗能，然后进行线性插值，得到每个点上的耗能；
-    graph_5 ： 绘制损伤指标曲线，通过park——ang损伤模型计算损伤指标，并输出'''
+    graph_4 ： 绘制损伤指标曲线，通过park——ang损伤模型计算损伤指标，并输出
+    graph_5 ： 绘制滞回圈，通过park——ang损伤模型计算损伤指标，并输出'''
 
 # 结果保存设置
 save_dir = True  # 是否保存累计位移与强度退化
@@ -21,14 +23,17 @@ show_predict = False  # 是否展示测试集预测点
 show_point_predict = False  # 是否展示抽取的一个预测点位置，注意，这个最好和上一逻辑值相反
 
 # 绘制可视化图表
-graph_1 = True  # 绘制滞回曲线
+graph_1 = False  # 绘制滞回曲线
 graph_2 = False  # 绘制能量曲线
 graph_3 = False  # 绘制骨架曲线
-graph_4 = False  # 绘制累计滞回耗能
-graph_5 = False  # 绘制损伤指标曲线
+graph_4 = True  # 绘制损伤指标曲线
+graph_5 = False  # 绘制滞回圈
 
 # 插值方式选取
-interpolation_method = "linear interpolation"  # 插值方式spline interpolation（三次插值）/linear interpolation（线性插值）
+interpolation_method = "spline interpolation"  # 插值方式spline interpolation（三次插值）/linear interpolation（线性插值）
+
+# 翻转点的寻找方式
+reverse_method = "force"  # 按照夹角的方式找angle/displace(前后三个点中，中间点的位移绝对值值最大）/force（每个滞回角中力值最大的点）
 
 # 是否打印周期点数据
 period_print = True
@@ -60,6 +65,25 @@ else:
 
 if __name__ == '__main__':
 
+    '''计算每个滞回圈的终点'''
+    zero_number = []
+    zero_disp = []
+    zero_force = []
+
+
+    def zero_point(point):
+        """将对应的点添加到零点列表中"""
+        zero_number.append(point)
+        zero_disp.append(displace[point])
+        zero_force.append(force[point])
+
+
+    for i in range(1, len(displace) - 1):  # 坐标原点不需要对其进行判断
+        if force[i] * force[i + 1] <= 0:
+            zero_point(i)
+    print("滞回曲线各零点的序号为{}".format(zero_number))
+    print("滞回曲线的零点总数为{}".format(len(zero_number)))
+
     # 计算翻转点：当一个点的横坐标绝对值比其上一个点和其下一个点都小时，这个点即为翻转点
     reverse_disp = []
     reverse_force = []
@@ -86,42 +110,48 @@ if __name__ == '__main__':
                 i += 1  # 乘积为负或零，继续检查下一组相邻元素
 
 
-    for i in range(0, len(displace)):  # 注意，此时的翻转点是包含了原点以及最后一个点的
-        if i == 0:
+    # 翻转点寻找
+    # 注意，此时的翻转点是包含了原点以及最后一个点的
+    if reverse_method == 'angle':#按照夹角的方式进行寻找
+        reversal_point(0)
+        # 在每一个滞回角找一个夹角最小的点
+        minimum = 180
+        for j in range(1, zero_number[0]):  # 在刚开始的半圈里找到一个夹角最小的值
+            v1 = [displace[j] - displace[j - 1], force[j] - force[j - 1]]
+            v2 = [displace[j] - displace[j + 1], force[j] - force[j + 1]]
+            if vector_angle(v1, v2) < minimum:
+                minimum = vector_angle(v1, v2)
+                minimum_num = j
+        reversal_point(minimum_num)
+        for i in range(len(zero_number) - 1):  # 以零点为索引，找到每一角，夹角最小的点
+            minimum = 180
+            for j in range(zero_number[i] + 1, zero_number[i + 1]):
+                v1 = [displace[j] - displace[j - 1], force[j] - force[j - 1]]
+                v2 = [displace[j] - displace[j + 1], force[j] - force[j + 1]]
+                if vector_angle(v1, v2) < minimum:
+                    # if vector_angle(v1, v2) < minimum and abs(force[j]) > 0.9 * abs(force[j - 1]):
+                    minimum = vector_angle(v1, v2)
+                    minimum_num = j
+            reversal_point(minimum_num)
+        reversal_point(len(displace) - 1)
+    elif reverse_method == 'displace':
+        reversal_point(0)
+        for i in range(1, len(displace) - 1):
+            if np.abs(displace[i]) > np.abs(displace[i + 1]) and np.abs(displace[i]) > np.abs(displace[i - 1]):
+                reversal_point(i)  # 存在42个翻转点,与零点数量一致
+        delete_elements(reverse_disp, reverse_number, reverse_force)
+        reversal_point(len(displace) - 1)
+    else:
+        reversal_point(0)
+        segmentation_index = [0] + zero_number
+        max_force_points = find_max_abs_force_indices(force.tolist(), segmentation_index)
+        for i in max_force_points:
             reversal_point(i)
-        elif i == len(displace) - 1:
-            reversal_point(i)
-        else:#在每一个滞回角找一个夹角最小的点
-            # if np.abs(displace[i]) > np.abs(displace[i + 1]) and np.abs(displace[i]) > np.abs(displace[i - 1]):
-            # if np.abs(force[i]) > np.abs(force[i + 1]) and np.abs(force[i]) > np.abs(force[i - 1]):
-            v1 = [force[i] - force[i - 1], displace[i] - displace[i - 1]]
-            v2 = [force[i] - force[i + 1], displace[i] - displace[i + 1]]
-            if vector_angle(v1,v2) < 100 :
-                reversal_point(i)
-    # delete_elements(reverse_disp, reverse_number, reverse_force)
+        reversal_point(len(displace) - 1)
     print("翻转点的位移值为{}".format(reverse_disp))
     print("翻转点的力值为{}".format(reverse_force))
     print("翻转点的序号为{}".format(reverse_number))
     print("翻转点数量为{}".format(len(reverse_number)))
-
-    '''计算每个滞回圈的终点'''
-    zero_number = []
-    zero_disp = []
-    zero_force = []
-
-
-    def zero_point(point):
-        """将对应的点添加到零点列表中"""
-        zero_number.append(point)
-        zero_disp.append(displace[point])
-        zero_force.append(force[point])
-
-
-    for i in range(1, len(displace) - 1):  # 坐标原点不需要对其进行判断
-        if force[i] * force[i + 1] <= 0:
-            zero_point(i)
-    print("滞回曲线各零点的序号为{}".format(zero_number))
-    print("滞回曲线的零点总数为{}".format(len(zero_number)))
 
     # 计算累计位移
     cumulative_deformation = [0]
@@ -300,9 +330,7 @@ if __name__ == '__main__':
         plt.xlabel("累计位移(mm)")
         plt.ylabel("耗能(J)")
         # plt.plot(cumulative_deformation, cumulative_hysteretic_energy_consumption)
-        plt.scatter(cumulative_deformation, cumulative_hysteretic_energy_consumption, marker='s',
-                    edgecolors=['dimgray'])
-
+        plt.scatter(cumulative_deformation, cumulative_hysteretic_energy_consumption, marker='s', s=5,edgecolors=['dimgray'])
         plt.rcParams['font.sans-serif'] = ['SimHei']  # 显示中文标签
         plt.rcParams['axes.unicode_minus'] = False
         plt.title("累计耗能曲线")
@@ -318,7 +346,7 @@ if __name__ == '__main__':
         plt.scatter(yield_disp, yield_force, s=60, c='green', marker='^', )  # 等效屈服点
         # plt.annotate('yield_point', xy=(yield_disp, yield_force), xytext=(yield_disp - 10, yield_force + 10),
         #              arrowprops=dict(facecolor='black', shrink=0.05, headwidth=10, width=3), )
-        plt.annotate('预测点', xy=(yield_disp, yield_force), xytext=(yield_disp - 10, yield_force + 10),
+        plt.annotate('等效屈服点', xy=(yield_disp, yield_force), xytext=(yield_disp - 10, yield_force + 10),
                      arrowprops=dict(facecolor='black', shrink=0.05, headwidth=10, width=3), )
         # plt.scatter(bone_disp[bone_zero_number], bone_force[bone_zero_number], c='red', marker='o')
         # plt.scatter(bone_disp[bone_max_number], bone_force[bone_max_number], c='red', marker='o')
@@ -335,19 +363,8 @@ if __name__ == '__main__':
         plt.title("骨架曲线")
         # plt.savefig(r'E:\研究生\科研生活\滞回曲线实操\数据库-new\Shear_compression_tests\RS1\特征曲线.jpg')
 
-    if graph_4:
-        # 绘制累计滞回耗能曲线，观察滞回曲线图你会发现，确实是每两个圈作为一组进行递增的（这时候并没有进行累加），符合预期，这个图不用
-        # plt.xlabel("cumulative_deformation(mm)")
-        # plt.ylabel("cumulative_hysteretic_energy_consumption(J)")
-        plt.xlabel("累计位移(mm)")
-        plt.ylabel("累计耗能(J)")
-        plt.plot(cumulative_deformation, cumulative_hysteretic_energy_consumption)
-        plt.scatter(cumulative_deformation, cumulative_hysteretic_energy_consumption, s=20, c='orange', marker='x')
-        plt.rcParams['font.sans-serif'] = ['SimHei']  # 显示中文标签
-        plt.rcParams['axes.unicode_minus'] = False
-        plt.title("累计滞回耗能曲线")
 
-    if graph_5:
+    if graph_4:
         # 绘制损伤指标曲线
         # 添加标题
         # plt.title('Park-Ange damage index')
@@ -357,12 +374,19 @@ if __name__ == '__main__':
         plt.xlabel("累计位移(mm)")
         plt.ylabel("损伤指标")
         # plt.plot(cumulative_deformation, damage_index)
-        s1 = plt.scatter(cumulative_deformation, damage_index, marker='s', edgecolors=['dimgray'])
+        s1 = plt.scatter(cumulative_deformation, damage_index, marker='s',s=5, edgecolors=['dimgray'])
         # parameter = np.polyfit(cumulative_deformation, damage_index, 8)  # 用8次函数进行拟合
         # p = np.poly1d(parameter)
         # plt.plot(cumulative_deformation, p(cumulative_deformation), color='g')
         plt.rcParams['font.sans-serif'] = ['SimHei']  # 显示中文标签
         plt.rcParams['axes.unicode_minus'] = False
+
+    if graph_5:
+        # 绘制滞回圈
+        periodic_cycle_number.insert(0, 0)
+        periodic_cycle_number.append(len(force))
+        plot_hysteresis_loop(force, displace, periodic_cycle_number, reverse_disp,reverse_force, switch=False)  # switch控制是否开启多图显示
+
 
     if show_predict:
         # 展示预测点
