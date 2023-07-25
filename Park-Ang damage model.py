@@ -16,17 +16,17 @@ from hysteresis_loop import plot_hysteresis_loop
     graph_5 ： 绘制滞回圈，通过park——ang损伤模型计算损伤指标，并输出'''
 
 # 结果保存设置
-save_dir = True  # 是否保存累计位移与强度退化
+save_dir = False  # 是否保存累计位移与强度退化
 target_dir = r"sampling_data/damage_index_all.csv"
-pre = "multi_task"  # 设置预测点事单任务训练还是多任务训练的single_task/multi_task
+pre = "single_task"  # 设置预测点事单任务训练还是多任务训练的single_task/multi_task
 show_predict = False  # 是否展示测试集预测点
-show_point_predict = False  # 是否展示抽取的一个预测点位置，注意，这个最好和上一逻辑值相反
+show_point_predict = True  # 是否展示抽取的一个预测点位置，注意，这个最好和上一逻辑值相反
 
 # 绘制可视化图表
 graph_1 = False  # 绘制滞回曲线
 graph_2 = False  # 绘制能量曲线
 graph_3 = False  # 绘制骨架曲线
-graph_4 = True  # 绘制损伤指标曲线
+graph_4 = False  # 绘制损伤指标曲线
 graph_5 = False  # 绘制滞回圈
 
 # 插值方式选取
@@ -41,6 +41,8 @@ period_print = True
 # 加载数据
 # 使用genfromtxt函数加载CSV文件
 Input_dir = r"E:\Code\Hysteretic curve processing\sampling_data\RS3.csv"  # 原数据
+test_dir = r"E:\Code\Image regression\data\data_test.csv"  # 测试集数据
+pic_index_dir = r"E:\Code\Image regression\data\data.csv" # 所有图片的指标
 Input_pic_dir = r"E:\Code\Hysteretic curve processing\data_new\RS3.csv"  # 经过处理后的拥有图片部分的数据
 data = np.genfromtxt(Input_dir, delimiter=',', skip_header=1,
                      dtype=[('image_names', 'U50'), ('u [mm]', float), ('Fh [kN]', float)])
@@ -52,6 +54,20 @@ force = data['Fh_kN']
 print(displace.shape, force.shape)
 print(type(displace), type(force))
 
+# 获取测试集数据
+test_data = np.genfromtxt(test_dir, delimiter=',', skip_header=1,
+                          dtype=[('image_dir', 'U50'), ('cumulative_deformation', float), ('degraded_stiff', float),
+                                 ('degraded_strength', float), ('damage_index', float)])
+test_cumulative_deformation = test_data['cumulative_deformation']
+test_damage_index = test_data['damage_index']
+
+#获取所有图片的三大指标数据
+pic_index_data = np.genfromtxt(pic_index_dir, delimiter=',', skip_header=1,
+                          dtype=[('image_dir', 'U50'), ('cumulative_deformation', float), ('degraded_stiff', float),
+                                 ('degraded_strength', float), ('damage_index', float)])
+pic_index_cumulative_deformation = pic_index_data['cumulative_deformation']
+pic_index_damage_index = pic_index_data['damage_index']
+
 # 预测文件加载
 if pre == 'multi_task':
     dir_predict = r'E:\Code\Image regression\data\data_multi_task_predict.csv'  # 多任务预测数据
@@ -59,7 +75,7 @@ if pre == 'multi_task':
     pre_y = np.loadtxt(dir_predict, delimiter=',', skiprows=1, usecols=6)
 
 else:
-    dir_predict = r'E:\Code\Image regression\data\data_stiff_predict.csv'  # 单任务预测数据
+    dir_predict = r'E:\Code\Image regression\data\data_damage_predict.csv'  # 单任务预测数据
     pre_x = np.loadtxt(dir_predict, delimiter=',', skiprows=1, usecols=1)
     pre_y = np.loadtxt(dir_predict, delimiter=',', skiprows=1, usecols=2)
 
@@ -374,12 +390,12 @@ if __name__ == '__main__':
         plt.xlabel("累计位移(mm)")
         plt.ylabel("损伤指标")
         # plt.plot(cumulative_deformation, damage_index)
-        s1 = plt.scatter(cumulative_deformation, damage_index, marker='s',s=5, edgecolors=['dimgray'])
+        if show_predict == False and show_point_predict == False:
+            s1 = plt.scatter(cumulative_deformation, damage_index, marker='s',s=5, edgecolors=['dimgray'])
         # parameter = np.polyfit(cumulative_deformation, damage_index, 8)  # 用8次函数进行拟合
         # p = np.poly1d(parameter)
         # plt.plot(cumulative_deformation, p(cumulative_deformation), color='g')
-        plt.rcParams['font.sans-serif'] = ['SimHei']  # 显示中文标签
-        plt.rcParams['axes.unicode_minus'] = False
+
 
     if graph_5:
         # 绘制滞回圈
@@ -390,20 +406,26 @@ if __name__ == '__main__':
 
     if show_predict:
         # 展示预测点
-        s2 = plt.scatter(pre_x, pre_y, c='orange', marker='^', s=50, edgecolors=['dimgray'])
-        # plt.legend((s1, s2), ('true label', 'predict label'), loc='best')
-        plt.legend((s1, s2), ('真实标签', '预测标签'), loc='best')
+        s3 = plt.plot(cumulative_deformation, damage_index, linewidth=2.5, label='真实标签')
+        s4 = plt.scatter(test_cumulative_deformation, test_damage_index, marker='s', s=50, edgecolors=['dimgray'],
+                         label='样本真实标签')
+        s5 = plt.scatter(pre_x, pre_y, c='orange', marker='^', s=50, edgecolors=['dimgray'], label='样本预测标签')
+        plt.legend(loc='best')
 
     if show_point_predict:  # 是否展示其中的某一个点
-        s3 = plt.scatter(pre_x[29], pre_y[29], c='orange', marker='^', s=80, edgecolors=['dimgray'],
-                         label="predict label")
-        # plt.annotate('predict_point', xy=(pre_x[29], pre_y[29]), xytext=(pre_x[29] - 150, pre_y[29] + 0.5),
+        s7 = plt.scatter(pic_index_cumulative_deformation, pic_index_damage_index, marker='s',
+                         s=30, edgecolors=['dimgray'])
+        s6 = plt.scatter(pre_x[0], pre_y[0], c='orange', marker='^', s=80, edgecolors=['dimgray'])
+        # plt.annotate('predict_point', xy=(pre_x[29], pre_y[29]), xytext=(pre_x[29] + 50, pre_y[29] + 10),
         #              arrowprops=dict(facecolor='black', shrink=0.05, headwidth=10, width=3), )
-        plt.annotate('预测点', xy=(pre_x[29], pre_y[29]), xytext=(pre_x[29] - 50, pre_y[29] + 0.3),
+        plt.annotate('预测点', xy=(pre_x[0], pre_y[0]), xytext=(pre_x[0] + 30, pre_y[0] + 5),
                      arrowprops=dict(facecolor='black', shrink=0.05, headwidth=10, width=3), )
 
-        # plt.legend((s1, s3), ('true label', 'predict label'), loc='best')
-        plt.legend((s1, s3), ('真实标签', '预测标签'), loc='best')
+        # plt.legend((s7, s6), ('true label', 'predict label'), loc='best')
+        plt.legend((s7, s6), ('真实标签', '预测标签'), loc='best')
+
+    plt.rcParams['font.sans-serif'] = ['SimHei']  # 显示中文标签
+    plt.rcParams['axes.unicode_minus'] = False
     plt.show()
 
     # 结果保存
