@@ -8,10 +8,10 @@ from angle import vector_angle
 from find_max import find_max_abs_force_indices
 
 # 结果保存设置
-save_dir = True  # 是否保存累计位移与强度退化
+save_dir = False  # 是否保存累计位移与强度退化
 target_dir = r"sampling_data/degraded_strength_all.csv"  # 保存承载力计算数据地址
-pre = "multi_task"  # 设置预测点事单任务训练还是多任务训练的single_task/multi_task
-show_predict = False  # 是否展示预测点
+pre = "single_task"  # 设置预测点事单任务训练还是多任务训练的single_task/multi_task
+show_predict = True  # 是否展示预测点
 show_point_predict = False  # 是否展示抽取的一个预测点位置，注意，这个最好和上一逻辑值相反
 
 # 插值方式选取
@@ -26,7 +26,8 @@ period_print = False
 # 加载数据
 # 使用genfromtxt函数加载CSV文件
 Input_dir = r"E:\Code\Hysteretic curve processing\sampling_data\RS3.csv"  # 原数据
-Input_pic_dir = r"E:\Code\Hysteretic curve processing\data_new\RS3.csv"  # 经过处理后的拥有图片部分的数据
+test_dir = r"E:\Code\Image regression\data\data_test.csv"  # 测试集数据
+pic_index_dir = r"E:\Code\Image regression\data\data.csv" # 所有图片的指标
 data = np.genfromtxt(Input_dir, delimiter=',', skip_header=1,
                      dtype=[('image_names', 'U50'), ('u [mm]', float), ('Fh [kN]', float)])
 
@@ -35,6 +36,20 @@ image_names = data['image_names']
 displace = data['u_mm']
 force = data['Fh_kN']
 
+# 获取测试集数据
+test_data = np.genfromtxt(test_dir, delimiter=',', skip_header=1,
+                          dtype=[('image_dir', 'U50'), ('cumulative_deformation', float), ('degraded_stiff', float),
+                                 ('degraded_strength', float), ('damage_index', float)])
+test_cumulative_deformation = test_data['cumulative_deformation']
+test_degraded_strength = test_data['degraded_strength']
+
+#获取所有图片的三大指标数据
+pic_index_data = np.genfromtxt(pic_index_dir, delimiter=',', skip_header=1,
+                          dtype=[('image_dir', 'U50'), ('cumulative_deformation', float), ('degraded_stiff', float),
+                                 ('degraded_strength', float), ('damage_index', float)])
+pic_index_cumulative_deformation = pic_index_data['cumulative_deformation']
+pic_index_degraded_strength = pic_index_data['degraded_strength']
+
 # 预测文件加载
 if pre == 'multi_task':
     dir_predict = r'E:\Code\Image regression\data\data_multi_task_predict.csv'  # 多任务预测数据
@@ -42,7 +57,7 @@ if pre == 'multi_task':
     pre_y = np.loadtxt(dir_predict, delimiter=',', skiprows=1, usecols=4)
 
 else:
-    dir_predict = r'E:\Code\Image regression\data\data_stiff_predict.csv'  # 单任务预测数据
+    dir_predict = r'E:\Code\Image regression\data\data_strength_predict.csv'  # 单任务预测数据
     pre_x = np.loadtxt(dir_predict, delimiter=',', skiprows=1, usecols=1)
     pre_y = np.loadtxt(dir_predict, delimiter=',', skiprows=1, usecols=2)
 
@@ -95,6 +110,7 @@ if __name__ == '__main__':
             else:
                 i += 1  # 乘积为负或零，继续检查下一组相邻元素
 
+
     # 翻转点寻找
     if reverse_method == 'angle':  # 按照夹角的方式进行寻找
         # 在每一个滞回角找一个夹角最小的点
@@ -130,7 +146,6 @@ if __name__ == '__main__':
     print("翻转点的力值为{}".format(reverse_force))
     print("翻转点的序号为{}".format(reverse_number))
     print("翻转点数量为{}".format(len(reverse_number)))
-
 
     '''刚开始没有发生强度退化，因此编写一个计算列表中绝对值最大的函数，该函数返回绝对值最大的序号'''
 
@@ -234,7 +249,8 @@ if __name__ == '__main__':
     plt.ylabel('承载力退化(KN/mm)')
     # parameter = np.polyfit(cumulative_deformation, degraded_strength, 4)  # 用8次函数进行拟合
     # p = np.poly1d(parameter)
-    s1 = plt.scatter(cumulative_deformation, degraded_strength, marker='s', s=10, edgecolors=['dimgray'])
+    if show_predict == False and show_point_predict==False:
+        s1 = plt.scatter(cumulative_deformation, degraded_strength, marker='s', s=10, edgecolors=['dimgray'])
     if period_print:
         cumulative_deformation2 = []
         for i in range(len(Periodic_cycle_point)):
@@ -245,19 +261,23 @@ if __name__ == '__main__':
     # plt.plot(cumulative_deformation, p(cumulative_deformation), color='g')
     if show_predict:
         # 展示预测点
-        s2 = plt.scatter(pre_x, pre_y, c='orange', marker='^', s=50, edgecolors=['dimgray'])
-        # plt.legend((s1, s2), ('true label', 'predict label'), loc='best')
-        plt.legend((s1, s2), ('真实标签', '预测标签'), loc='best')
+        s3 = plt.plot(cumulative_deformation, degraded_strength, linewidth=2.5, label='真实标签')
+        s4 = plt.scatter(test_cumulative_deformation, test_degraded_strength, marker='s', s=50, edgecolors=['dimgray'], label = '样本真实标签')
+        s5 = plt.scatter(pre_x, pre_y, c='orange', marker='^', s=50, edgecolors=['dimgray'],label = '样本预测标签')
+        # plt.legend((s4, s5), ('true label', 'predict label'), loc='best')
+        plt.legend(loc='best')
 
     if show_point_predict:  # 是否展示其中的某一个点
-        s3 = plt.scatter(pre_x[29], pre_y[29], c='orange', marker='^', s=80, edgecolors=['dimgray'])
+        s7 = plt.scatter(pic_index_cumulative_deformation, pic_index_degraded_strength, marker='s',
+                         s=30, edgecolors=['dimgray'])
+        s6 = plt.scatter(pre_x[0], pre_y[0], c='orange', marker='^', s=80, edgecolors=['dimgray'])
         # plt.annotate('predict_point', xy=(pre_x[29], pre_y[29]), xytext=(pre_x[29] + 50, pre_y[29] + 10),
         #              arrowprops=dict(facecolor='black', shrink=0.05, headwidth=10, width=3), )
-        plt.annotate('预测点', xy=(pre_x[29], pre_y[29]), xytext=(pre_x[29] + 50, pre_y[29] + 10),
+        plt.annotate('预测点', xy=(pre_x[0], pre_y[0]), xytext=(pre_x[0] + 30, pre_y[0] + 5),
                      arrowprops=dict(facecolor='black', shrink=0.05, headwidth=10, width=3), )
 
-        # plt.legend((s1, s3), ('true label', 'predict label'), loc='best')
-        plt.legend((s1, s3), ('真实标签', '预测标签'), loc='best')
+        # plt.legend((s1, s6), ('true label', 'predict label'), loc='best')
+        plt.legend((s7, s6), ('真实标签', '预测标签'), loc='best')
     plt.rcParams['font.sans-serif'] = ['SimHei']  # 显示中文标签
     plt.rcParams['axes.unicode_minus'] = False
     plt.show()
