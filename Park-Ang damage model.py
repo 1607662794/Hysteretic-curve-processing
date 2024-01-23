@@ -18,12 +18,12 @@ from hysteresis_loop import plot_hysteresis_loop
 # 结果保存设置
 save_dir = False  # 是否保存累计位移与强度退化
 target_dir = r"sampling_data/damage_index_all.csv"
-pre = "single_task"  # 设置预测点事单任务训练还是多任务训练的single_task/multi_task
+pre = "multi_task"  # 设置预测点使用单任务训练还是多任务训练的single_task/multi_task
 show_predict = False  # 是否展示测试集预测点
-show_point_predict = True  # 是否展示抽取的一个预测点位置，注意，这个最好和上一逻辑值相反
+show_point_predict = False # 是否展示抽取的一个预测点位置，注意，这个最好和上一逻辑值相反
 
 # 绘制可视化图表
-graph_1 = False  # 绘制滞回曲线
+graph_1 = True  # 绘制滞回曲线
 graph_2 = False  # 绘制能量曲线
 graph_3 = False  # 绘制骨架曲线
 graph_4 = False  # 绘制损伤指标曲线
@@ -36,36 +36,38 @@ interpolation_method = "spline interpolation"  # 插值方式spline interpolatio
 reverse_method = "force"  # 按照夹角的方式找angle/displace(前后三个点中，中间点的位移绝对值值最大）/force（每个滞回角中力值最大的点）
 
 # 是否打印周期点数据
-period_print = True
+period_print = False
 
 # 加载数据
 # 使用genfromtxt函数加载CSV文件
-Input_dir = r"E:\Code\Hysteretic curve processing\sampling_data\RS3.csv"  # 原数据
+Input_dir = r"E:\Code\Hysteretic curve processing\sampling_data\RS3_time_appended.csv"  # 原数据
 test_dir = r"E:\Code\Image regression\data\data_test.csv"  # 测试集数据
-pic_index_dir = r"E:\Code\Image regression\data\data.csv" # 所有图片的指标
+pic_index_dir = r"E:\Code\Image regression\data\data.csv"  # 所有图片的指标
 Input_pic_dir = r"E:\Code\Hysteretic curve processing\data_new\RS3.csv"  # 经过处理后的拥有图片部分的数据
 data = np.genfromtxt(Input_dir, delimiter=',', skip_header=1,
-                     dtype=[('image_names', 'U50'), ('u [mm]', float), ('Fh [kN]', float)])
+                     dtype=[('image_names', 'U50'), ('u [mm]', float), ('Fh [kN]', float), ('times [s]', int)])
 
 # 获取加载后的数据
 image_names = data['image_names']
 displace = data['u_mm']
 force = data['Fh_kN']
+times = data['times_s']
 print(displace.shape, force.shape)
 print(type(displace), type(force))
 
 # 获取测试集数据
 test_data = np.genfromtxt(test_dir, delimiter=',', skip_header=1,
                           dtype=[('image_dir', 'U50'), ('cumulative_deformation', float), ('degraded_stiff', float),
-                                 ('degraded_strength', float), ('damage_index', float)])
-test_cumulative_deformation = test_data['cumulative_deformation']
+                                 ('degraded_strength', float), ('damage_index', float), ('times', float)])
+test_times = test_data['times']
 test_damage_index = test_data['damage_index']
 
-#获取所有图片的三大指标数据
+# 获取所有图片的三大指标数据
 pic_index_data = np.genfromtxt(pic_index_dir, delimiter=',', skip_header=1,
-                          dtype=[('image_dir', 'U50'), ('cumulative_deformation', float), ('degraded_stiff', float),
-                                 ('degraded_strength', float), ('damage_index', float)])
-pic_index_cumulative_deformation = pic_index_data['cumulative_deformation']
+                               dtype=[('image_dir', 'U50'), ('cumulative_deformation', float),
+                                      ('degraded_stiff', float),
+                                      ('degraded_strength', float), ('damage_index', float), ('times', float)])
+pic_index_times = pic_index_data['times']
 pic_index_damage_index = pic_index_data['damage_index']
 
 # 预测文件加载
@@ -128,7 +130,7 @@ if __name__ == '__main__':
 
     # 翻转点寻找
     # 注意，此时的翻转点是包含了原点以及最后一个点的
-    if reverse_method == 'angle':#按照夹角的方式进行寻找
+    if reverse_method == 'angle':  # 按照夹角的方式进行寻找
         reversal_point(0)
         # 在每一个滞回角找一个夹角最小的点
         minimum = 180
@@ -317,16 +319,24 @@ if __name__ == '__main__':
         # plt.rcParams['axes.facecolor'] = 'lightgray'
         # 创建图形和坐标轴对象
         fig, ax = plt.subplots()
-        ax.plot(displace, force)
-        ax.scatter(reverse_disp, reverse_force, c='orange', marker='s', edgecolors=['dimgray'])
+        ax.plot(displace, force, color='k', linewidth=0.8)
+        # ax.scatter(reverse_disp, reverse_force, c='k', marker='s', s=15, edgecolors=['k'])
         # 添加分割线背景
-        ax.grid(color='lightgray', linestyle='-', linewidth=0.5)
+        xiloc = plt.MultipleLocator(2.5)  # Set a tick on each integer multiple of the *base* within the view interval.
+        yiloc = plt.MultipleLocator(10)  # Set a tick on each integer multiple of the *base* within the view interval.
+        ax.xaxis.set_minor_locator(xiloc)
+        ax.yaxis.set_minor_locator(yiloc)
+        ax.grid(color='lightgray', linestyle='-', linewidth=0.5, axis='both', which='both')
         # ax.set_title('Hysteretic curve')
         # ax.set_xlabel('displace(mm)')
         # ax.set_ylabel('force(KN)')
-        ax.set_title('滞回曲线')
-        ax.set_xlabel('位移(mm)')
-        ax.set_ylabel('力(KN)')
+        # ax.set_title('滞回曲线')
+
+        # 刻度值字体大小设置（x轴和y轴同时设置）
+        plt.tick_params(labelsize=10)
+
+        ax.set_xlabel('Displacement(mm)', font={'family': 'Times New Roman', 'size': 12})
+        ax.set_ylabel('Force (kN)', font={'family': 'Times New Roman', 'size': 12})
         # ax = plt.gca()  # 获取当前坐标的位置
         # ax.spines['right'].set_color('None')  # 去掉坐标图的上和右 spine翻译成脊梁
         # ax.spines['top'].set_color('None')
@@ -334,19 +344,21 @@ if __name__ == '__main__':
         # ax.yaxis.set_ticks_position('left')  # 设置left为x轴
         # ax.spines['bottom'].set_position(('data', 0))  # 这个位置的括号要注意
         # ax.spines['left'].set_position(('data', 0))
+        plt.tight_layout()
         plt.rcParams['font.sans-serif'] = ['SimHei']  # 显示中文标签
         plt.rcParams['axes.unicode_minus'] = False
-
-        # plt.savefig(r'E:\研究生\科研生活\滞回曲线实操\数据库-new\Shear_compression_tests\RS1\滞回曲线.jpg')
+        plt.savefig(f'E:\Code\Image regression\论文绘图\python绘图保存\滞回曲线_用于系列预测图片绘图.png', dpi=600, bbox_inches='tight')
 
     if graph_2:
         # 绘制能量曲线，这个图不用
         # plt.xlabel("cumulative_deformation(mm)")
         # plt.ylabel("cumulative_energy(J)")
-        plt.xlabel("累计位移(mm)")
+        # plt.xlabel("累计位移(mm)")
+        plt.xlabel('时间(s)')
         plt.ylabel("耗能(J)")
         # plt.plot(cumulative_deformation, cumulative_hysteretic_energy_consumption)
-        plt.scatter(cumulative_deformation, cumulative_hysteretic_energy_consumption, marker='s', s=5,edgecolors=['dimgray'])
+        plt.scatter(times, cumulative_hysteretic_energy_consumption, marker='s', s=5, edgecolors=['dimgray'])
+        # plt.scatter(cumulative_deformation, cumulative_hysteretic_energy_consumption, marker='s', s=5,edgecolors=['dimgray'])
         plt.rcParams['font.sans-serif'] = ['SimHei']  # 显示中文标签
         plt.rcParams['axes.unicode_minus'] = False
         plt.title("累计耗能曲线")
@@ -355,15 +367,18 @@ if __name__ == '__main__':
         # 绘制骨架曲线
         # plt.xlabel("bone_disp(mm)")
         # plt.ylabel("bone_force(KN)")
-        plt.xlabel("位移(mm)")
-        plt.ylabel("力(KN)")
-        plt.plot(bone_disp, bone_force)
-        plt.scatter(bone_disp, bone_force, marker='s')
-        plt.scatter(yield_disp, yield_force, s=60, c='green', marker='^', )  # 等效屈服点
+        fig, ax = plt.subplots()
+        ax.set_xlabel('Displacement (mm)', font={'family': 'Times New Roman', 'size': 18}, labelpad=6.5, x=0.8)
+        ax.set_ylabel('Force (kN)', font={'family': 'Times New Roman', 'size': 18}, y=0.9)
+        ax.plot(bone_disp, bone_force, zorder=1, color='red', linestyle='--')
+        ax.scatter(bone_disp, bone_force, marker='s', color='darkblue', s=15)
+        ax.scatter(yield_disp, yield_force, s=80, c='mediumturquoise', marker='^')  # 等效屈服点
         # plt.annotate('yield_point', xy=(yield_disp, yield_force), xytext=(yield_disp - 10, yield_force + 10),
         #              arrowprops=dict(facecolor='black', shrink=0.05, headwidth=10, width=3), )
-        plt.annotate('等效屈服点', xy=(yield_disp, yield_force), xytext=(yield_disp - 10, yield_force + 10),
-                     arrowprops=dict(facecolor='black', shrink=0.05, headwidth=10, width=3), )
+        ax.annotate('Equivalent yield point', xy=(yield_disp + 1, yield_force - 1),
+                    xytext=(yield_disp + 9, yield_force - 35),
+                    arrowprops=dict(facecolor='0.2', shrink=0.1, headwidth=5, width=2),
+                    font={'family': 'Times New Roman', 'size': 18}, ha='center')
         # plt.scatter(bone_disp[bone_zero_number], bone_force[bone_zero_number], c='red', marker='o')
         # plt.scatter(bone_disp[bone_max_number], bone_force[bone_max_number], c='red', marker='o')
         ax = plt.gca()  # 获取当前坐标的位置
@@ -376,9 +391,10 @@ if __name__ == '__main__':
         plt.rcParams['font.sans-serif'] = ['SimHei']  # 显示中文标签
         plt.rcParams['axes.unicode_minus'] = False
         # plt.title("Skeleton curve")
-        plt.title("骨架曲线")
-        # plt.savefig(r'E:\研究生\科研生活\滞回曲线实操\数据库-new\Shear_compression_tests\RS1\特征曲线.jpg')
-
+        plt.title("Skeleton curve", font={'family': 'Times New Roman', 'size': 18})
+        # 刻度值字体大小设置（x轴和y轴同时设置）
+        plt.tick_params(labelsize=14)
+        plt.savefig(f'E:\Code\Image regression\论文绘图\python绘图保存\骨架曲线.png', dpi=600, bbox_inches='tight')
 
     if graph_4:
         # 绘制损伤指标曲线
@@ -387,43 +403,81 @@ if __name__ == '__main__':
         # plt.xlabel("cumulative_deformation(mm)")
         # plt.ylabel("damage_index")
         plt.title('Park-Ange 损伤指标')
-        plt.xlabel("累计位移(mm)")
+        # plt.xlabel("累计位移(mm)")
         plt.ylabel("损伤指标")
+        plt.xlabel('时间(s)')
         # plt.plot(cumulative_deformation, damage_index)
         if show_predict == False and show_point_predict == False:
-            s1 = plt.scatter(cumulative_deformation, damage_index, marker='s',s=5, edgecolors=['dimgray'])
+            s1 = plt.scatter(times, damage_index, marker='s', s=5, edgecolors=['dimgray'])
+            # s1 = plt.scatter(times, damage_index, marker='s', s=5, edgecolors=['dimgray'])#原图
+            # s1 = plt.scatter(cumulative_deformation, damage_index, marker='s',s=5, edgecolors=['dimgray'])
         # parameter = np.polyfit(cumulative_deformation, damage_index, 8)  # 用8次函数进行拟合
         # p = np.poly1d(parameter)
         # plt.plot(cumulative_deformation, p(cumulative_deformation), color='g')
-
 
     if graph_5:
         # 绘制滞回圈
         periodic_cycle_number.insert(0, 0)
         periodic_cycle_number.append(len(force))
-        plot_hysteresis_loop(force, displace, periodic_cycle_number, reverse_disp,reverse_force, switch=False)  # switch控制是否开启多图显示
-
+        plot_hysteresis_loop(force, displace, periodic_cycle_number, reverse_disp, reverse_force,
+                             switch=False)  # switch控制是否开启多图显示
 
     if show_predict:
         # 展示预测点
-        s3 = plt.plot(cumulative_deformation, damage_index, linewidth=2.5, label='真实标签')
-        s4 = plt.scatter(test_cumulative_deformation, test_damage_index, marker='s', s=50, edgecolors=['dimgray'],
-                         label='样本真实标签')
-        s5 = plt.scatter(pre_x, pre_y, c='orange', marker='^', s=50, edgecolors=['dimgray'], label='样本预测标签')
-        plt.legend(loc='best')
+        # plt.title('Park-Ange 损伤指标')
+        fig, ax = plt.subplots()
+        ax.set_xlabel('Time(s)', font={'family': 'Times New Roman', 'size': 22})
+        ax.set_ylabel('Damage ratio', font={'family': 'Times New Roman', 'size': 22})
+        # plt.xlabel("时间(s)")
+        # plt.ylabel("损伤指标")
+        damage_index_array = np.array(damage_index)
+        s3 = plt.plot(times, damage_index_array / 18.53644085626638, color='red',  label='Real labels',
+                      zorder=1, linestyle='--')
+        s4 = plt.scatter(test_times, test_damage_index / 18.53644085626638, marker='s', s=50,
+                         color=(122 / 255, 27 / 255, 109 / 255),
+                         label='Real labels of samples')
+        s5 = plt.scatter(pre_x, pre_y / 18.53644085626638, marker='^', s=50, color=(237 / 255, 104 / 255, 37 / 255),
+                         label='Predicted labels of samples')
+        # s3 = plt.plot(times, damage_index, linewidth=2.5, label='真实标签', zorder=1)
+        # s4 = plt.scatter(test_times, test_damage_index, marker='s', s=50, edgecolors=['dimgray'],
+        #                  label='样本真实标签')
+        # s5 = plt.scatter(pre_x, pre_y, c='orange', marker='^', s=50, edgecolors=['dimgray'], label='样本预测标签')
+
+        plt.legend(loc='best', prop={'family': 'Times New Roman', 'size': 18})
+
+        # 刻度值字体大小设置（x轴和y轴同时设置）
+        plt.tick_params(labelsize=18)
+
+        # 移动轴的边缘来为刻度标注腾出空间
+        plt.tight_layout()
+        plt.savefig(f'E:\Code\Image regression\论文绘图\python绘图保存\测试集损伤指标预测.png', dpi=600,
+                    bbox_inches='tight')
 
     if show_point_predict:  # 是否展示其中的某一个点
-        s7 = plt.scatter(pic_index_cumulative_deformation, pic_index_damage_index, marker='s',
-                         s=30, edgecolors=['dimgray'])
-        s6 = plt.scatter(pre_x[0], pre_y[0], c='orange', marker='^', s=80, edgecolors=['dimgray'])
+        fig, ax = plt.subplots()
+        # plt.title('Park-Ang damage index', font={'family': 'Times New Roman', 'size': 20})
+        ax.set_xlabel('Time(s)', font={'family': 'Times New Roman', 'size': 22})
+        ax.set_ylabel('Damage ratio', font={'family': 'Times New Roman', 'size': 22})
+        damage_index_array = np.array(damage_index)
+        s7 = plt.scatter(pic_index_times, pic_index_damage_index / 18.53644085626638, color=(122/255, 27/255, 109/255), marker='s')
+        s6 = plt.scatter(pre_x[18], pre_y[18] / 18.53644085626638, c='mediumturquoise', marker='^', s=80)
+        s8 = plt.plot(times, damage_index_array / 18.53644085626638, color='red', label='Real labels',
+                      zorder=0, linestyle='--')
         # plt.annotate('predict_point', xy=(pre_x[29], pre_y[29]), xytext=(pre_x[29] + 50, pre_y[29] + 10),
         #              arrowprops=dict(facecolor='black', shrink=0.05, headwidth=10, width=3), )
-        plt.annotate('预测点', xy=(pre_x[0], pre_y[0]), xytext=(pre_x[0] + 30, pre_y[0] + 5),
-                     arrowprops=dict(facecolor='black', shrink=0.05, headwidth=10, width=3), )
+        plt.annotate('Prediction points', xy=(pre_x[18], pre_y[18] / 18.53644085626638),
+                     font={'family': 'Times New Roman', 'size': 20},
+                     xytext=(pre_x[18] - 1200, pre_y[18] / 18.53644085626638+0.03),
+                     arrowprops=dict(facecolor='0.2', shrink=0.05, headwidth=8, width=3))
 
         # plt.legend((s7, s6), ('true label', 'predict label'), loc='best')
-        plt.legend((s7, s6), ('真实标签', '预测标签'), loc='best')
-
+        plt.legend((s7, s6), ('Real labels', 'Predicted labels'), loc='best', prop={'family': 'Times New Roman', 'size': 20})
+        # 刻度值字体大小设置（x轴和y轴同时设置）
+        plt.tick_params(labelsize=20)
+        plt.savefig(f'E:\Code\Image regression\论文绘图\python绘图保存\单任务学习单点预测Damage.png', dpi=600,
+                    bbox_inches='tight')
+    # 移动轴的边缘来为刻度标注腾出空间
+    plt.tight_layout()
     plt.rcParams['font.sans-serif'] = ['SimHei']  # 显示中文标签
     plt.rcParams['axes.unicode_minus'] = False
     plt.show()
@@ -432,5 +486,5 @@ if __name__ == '__main__':
     if save_dir:
         label = pd.DataFrame(
             {'image_names': image_names, 'cumulative deformation(mm)': cumulative_deformation,
-             'damage_index': damage_index})
+             'damage_index': damage_index, 'times(s)': times})
         label.to_csv(target_dir, index=None)
