@@ -10,9 +10,9 @@ from find_max import find_max_abs_force_indices
 # 结果保存设置
 save_dir = False  # 是否保存累计位移与刚度退化
 target_dir = r"sampling_data/degraded_stiff_all.csv"
-pre = "single_task"  # 设置预测点事单任务训练还是多任务训练的single_task/multi_task
-show_predict = True  # 是否展示测试集预测点
-show_point_predict = False  # 是否展示抽取的一个预测点位置，注意，这个最好和上一逻辑值相反
+pre = "multi_task"  # 设置预测点事单任务训练还是多任务训练的single_task/multi_task
+show_predict = False  # 是否展示测试集预测点
+show_point_predict = True  # 是否展示抽取的一个预测点位置，注意，这个最好和上一逻辑值相反
 
 # 插值方式选取
 interpolation_method = "linear interpolation"  # 插值方式spline interpolation（三次插值）/linear interpolation（线性插值）
@@ -25,29 +25,31 @@ period_print = False
 
 # 加载数据
 # 使用genfromtxt函数加载CSV文件
-Input_dir = r"E:\Code\Hysteretic curve processing\sampling_data\RS3.csv"  # 原数据
+Input_dir = r"E:\Code\Hysteretic curve processing\sampling_data\RS3_time_appended.csv"  # 原数据
 test_dir = r"E:\Code\Image regression\data\data_test.csv"  # 测试集数据
-pic_index_dir = r"E:\Code\Image regression\data\data.csv" # 所有图片的指标
+pic_index_dir = r"E:\Code\Image regression\data\data.csv"  # 所有图片的指标
 data = np.genfromtxt(Input_dir, delimiter=',', skip_header=1,
-                     dtype=[('image_names', 'U50'), ('u [mm]', float), ('Fh [kN]', float)])
+                     dtype=[('image_names', 'U50'), ('u [mm]', float), ('Fh [kN]', float), ('times [s]', int)])
 
 # 获取加载后的数据
 image_names = data['image_names']
 displace = data['u_mm']
 force = data['Fh_kN']
+times = data['times_s']
 
 # 获取测试集数据
 test_data = np.genfromtxt(test_dir, delimiter=',', skip_header=1,
                           dtype=[('image_dir', 'U50'), ('cumulative_deformation', float), ('degraded_stiff', float),
-                                 ('degraded_strength', float), ('damage_index', float)])
-test_cumulative_deformation = test_data['cumulative_deformation']
+                                 ('degraded_strength', float), ('damage_index', float), ('times', float)])
+test_times = test_data['times']
 test_degraded_stiff = test_data['degraded_stiff']
 
-#获取所有图片的三大指标数据
+# 获取所有图片的三大指标数据
 pic_index_data = np.genfromtxt(pic_index_dir, delimiter=',', skip_header=1,
-                          dtype=[('image_dir', 'U50'), ('cumulative_deformation', float), ('degraded_stiff', float),
-                                 ('degraded_strength', float), ('damage_index', float)])
-pic_index_cumulative_deformation = pic_index_data['cumulative_deformation']
+                               dtype=[('image_dir', 'U50'), ('cumulative_deformation', float),
+                                      ('degraded_stiff', float),
+                                      ('degraded_strength', float), ('damage_index', float), ('times', float)])
+pic_index_times = pic_index_data['times']
 pic_index_degraded_stiff = pic_index_data['degraded_stiff']
 
 # 预测文件加载
@@ -149,13 +151,13 @@ if __name__ == '__main__':
 
 
     def abs_value(object):
-            # 找到一个序列中最大值的序号
-            value = object[0]
-            for i in range(len(object)):
-                if abs(value) <= abs(object[i]):
-                    j = i
-                    value = object[i]
-            return j, value
+        # 找到一个序列中最大值的序号
+        value = object[0]
+        for i in range(len(object)):
+            if abs(value) <= abs(object[i]):
+                j = i
+                value = object[i]
+        return j, value
 
 
     '''计算每一圈退化刚度，还是有点儿问题，退化刚度并不是递减的,是实验数据的问题'''
@@ -248,40 +250,72 @@ if __name__ == '__main__':
     # 设置坐标轴名称
     # plt.xlabel('cumulative deformation(mm)')
     plt.xlabel('累计位移(mm)')
+    plt.xlabel('时间(s)')
     # plt.xlabel('time_index')
     # plt.ylabel('degraded stiff(KN/mm)')
     plt.ylabel('刚度退化(KN/mm)')
     # parameter = np.polyfit(cumulative_deformation, degraded_stiff, 8)  # 用8次函数进行拟合
     # p = np.poly1d(parameter)
-    if show_predict == False and show_point_predict==False:
-        s1 = plt.scatter(cumulative_deformation, degraded_stiff, marker='s', s=10, edgecolors=['dimgray'])
+    if show_predict == False and show_point_predict == False:
+        s1 = plt.scatter(times, degraded_stiff, marker='s', s=10, edgecolors=['dimgray'])
     if period_print:
-        cumulative_deformation2 = []
+        # cumulative_deformation2 = []
+        times_2 = []
         for i in range(len(Periodic_cycle_point)):
-            cumulative_deformation2.append(cumulative_deformation[Periodic_cycle_point[i]])
-        s2 = plt.scatter(cumulative_deformation2, Periodic_cycle_degraded_stiffness, marker='s', s=10,
+            # cumulative_deformation2.append(cumulative_deformation[Periodic_cycle_point[i]])
+            times_2.append((times[Periodic_cycle_point[i]]))
+        s2 = plt.scatter(times_2, Periodic_cycle_degraded_stiffness, marker='s', s=20,
                          edgecolors=['dimgray'])
         plt.legend((s1, s2), ('全体值', '周期值'), loc='best')
     if show_predict:
         # 展示预测点
-        s3 = plt.plot(cumulative_deformation, degraded_stiff, linewidth=2.5, label='真实标签')
-        s4 = plt.scatter(test_cumulative_deformation, test_degraded_stiff, marker='s', s=50, edgecolors=['dimgray'],
-                         label='样本真实标签')
-        s5 = plt.scatter(pre_x, pre_y, c='orange', marker='^', s=50, edgecolors=['dimgray'], label='样本预测标签')
+        fig, ax = plt.subplots()
+        ax.set_xlabel('Time(s)', font={'family': 'Times New Roman', 'size': 22})
+        ax.set_ylabel('Stiffness degradation ratio', font={'family': 'Times New Roman', 'size': 22})
+        degraded_stiff_array = np.array(degraded_stiff)
+        s3 = plt.plot(times, degraded_stiff_array / 61.27174006657513,  label='Real labels', zorder=1, color='red', linestyle='--')
+        s4 = plt.scatter(test_times, test_degraded_stiff / 61.27174006657513, marker='s', s=50, color=(122/255, 27/255, 109/255), label='Real labels of samples')
+        s5 = plt.scatter(pre_x, pre_y / 61.27174006657513, color=(237/255, 104/255, 37/255), marker='^', s=50, label='Predicted labels of samples')
         # plt.legend((s1, s2), ('true label', 'predict label'), loc='best')
-        plt.legend(loc='best')
+
+        plt.legend(loc='best', prop={'family': 'Times New Roman', 'size': 18})
+
+        # 刻度值字体大小设置（x轴和y轴同时设置）
+        plt.tick_params(labelsize=18)
+
+        # 移动轴的边缘来为刻度标注腾出空间
+        plt.tight_layout()
+        plt.savefig(f'E:\Code\Image regression\论文绘图\python绘图保存\测试集Stiffness退化预测.png', dpi=600,
+                    bbox_inches='tight')
 
     if show_point_predict:  # 是否展示其中的某一个点
-        s7 = plt.scatter(pic_index_cumulative_deformation, pic_index_degraded_stiff, marker='s',
-                         s=30, edgecolors=['dimgray'])
-        s6 = plt.scatter(pre_x[0], pre_y[0], c='orange', marker='^', s=80, edgecolors=['dimgray'])
+        fig, ax = plt.subplots()
+        # plt.title('Stiffness degradation index', font={'family': 'Times New Roman', 'size': 20})
+        ax.set_xlabel('Time(s)', font={'family': 'Times New Roman', 'size': 22})
+        ax.set_ylabel('Stiffness degradation ratio', font={'family': 'Times New Roman', 'size': 22})
+        degraded_stiff_array = np.array(degraded_stiff)
+        s7 = plt.scatter(pic_index_times, pic_index_degraded_stiff / 61.27174006657513, color=(122/255, 27/255, 109/255), marker='s')
+        s6 = plt.scatter(pre_x[0], pre_y[0] / 61.27174006657513, c='mediumturquoise', marker='^', s=80)
+        s8 = plt.plot(times, degraded_stiff_array / 61.27174006657513, label='Real labels', zorder=0, color='red',
+                      linestyle='--')
+
         # plt.annotate('predict_point', xy=(pre_x[29], pre_y[29]), xytext=(pre_x[29] + 50, pre_y[29] + 10),
         #              arrowprops=dict(facecolor='black', shrink=0.05, headwidth=10, width=3), )
-        plt.annotate('预测点', xy=(pre_x[0], pre_y[0]), xytext=(pre_x[0] + 30, pre_y[0] + 5),
-                     arrowprops=dict(facecolor='black', shrink=0.05, headwidth=10, width=3), )
+        plt.annotate('Prediction points', xy=(pre_x[0], pre_y[0] / 61.27174006657513), font={'family': 'Times New Roman', 'size': 20}, xytext=(pre_x[0] + 100, pre_y[0] / 61.27174006657513+0.15),
+                     arrowprops=dict(facecolor='0.2', shrink=0.05, headwidth=8, width=3), )
 
         # plt.legend((s7, s6), ('true label', 'predict label'), loc='best')
-        plt.legend((s7, s6), ('真实标签', '预测标签'), loc='best')
+        plt.legend((s7, s6), ('Real labels', 'Predicted labels'), loc='best', prop={'family': 'Times New Roman', 'size': 20})
+
+        # 移动轴的边缘来为刻度标注腾出空间
+        plt.tight_layout()
+
+        # 刻度值字体大小设置（x轴和y轴同时设置）
+        plt.tick_params(labelsize=20)
+
+        plt.savefig(f'E:\Code\Image regression\论文绘图\python绘图保存\point2_多任务学习单点预测Stiffness.png', dpi=600,
+                    bbox_inches='tight')
+
     plt.rcParams['font.sans-serif'] = ['SimHei']  # 显示中文标签
     plt.rcParams['axes.unicode_minus'] = False
     plt.show()
@@ -290,5 +324,5 @@ if __name__ == '__main__':
     if save_dir:
         label = pd.DataFrame(
             {'image_names': image_names, 'cumulative deformation(mm)': cumulative_deformation,
-             'degraded stiff(KN/mm)': degraded_stiff})
+             'degraded stiff(KN/mm)': degraded_stiff, 'times(s)': times})
         label.to_csv(target_dir, index=None)
