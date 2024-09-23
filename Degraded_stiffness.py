@@ -11,8 +11,8 @@ from find_max import find_max_abs_force_indices
 save_dir = False  # 是否保存累计位移与刚度退化
 target_dir = r"sampling_data/degraded_stiff_all.csv"
 pre = "multi_task"  # 设置预测点事单任务训练还是多任务训练的single_task/multi_task
-show_predict = False  # 是否展示测试集预测点
-show_point_predict = True  # 是否展示抽取的一个预测点位置，注意，这个最好和上一逻辑值相反
+show_predict = True  # 是否展示测试集预测点
+show_point_predict = False  # 是否展示抽取的一个预测点位置，注意，这个最好和上一逻辑值相反
 
 # 插值方式选取
 interpolation_method = "linear interpolation"  # 插值方式spline interpolation（三次插值）/linear interpolation（线性插值）
@@ -26,7 +26,7 @@ period_print = False
 # 加载数据
 # 使用genfromtxt函数加载CSV文件
 Input_dir = r"E:\Code\Hysteretic curve processing\sampling_data\RS3_time_appended.csv"  # 原数据
-test_dir = r"E:\Code\Image regression\data\data_test.csv"  # 测试集数据
+test_dir = r"E:\Code\Image regression\data\data_train.csv"  # 测试集数据
 pic_index_dir = r"E:\Code\Image regression\data\data.csv"  # 所有图片的指标
 data = np.genfromtxt(Input_dir, delimiter=',', skip_header=1,
                      dtype=[('image_names', 'U50'), ('u [mm]', float), ('Fh [kN]', float), ('times [s]', int)])
@@ -285,7 +285,7 @@ if __name__ == '__main__':
 
         # 移动轴的边缘来为刻度标注腾出空间
         plt.tight_layout()
-        plt.savefig(f'E:\Code\Image regression\论文绘图\python绘图保存\测试集Stiffness退化预测.png', dpi=600,
+        plt.savefig(f'E:\Code\Image regression\论文绘图\python绘图保存\训练集Stiffness退化预测.png', dpi=600,
                     bbox_inches='tight')
 
     if show_point_predict:  # 是否展示其中的某一个点
