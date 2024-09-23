@@ -12,11 +12,15 @@
 
  [filter_damage.py](filter_damage.py) ：从计算出的所有数据 [damage_index_all.csv](sampling_data\damage_index_all.csv) 的强度值提取有图片对应的部分，输出  [damage_index.csv](..\Image regression\data\damage_index.csv) 
 
- [angle.py](angle.py) ：计算两个向量的角度
+------
 
- [find_max.py](find_max.py) ：找到每个滞回角中力的绝对值最大点的序号
+ utils.[angle.py](angle.py) ：计算两个向量的角度
 
- [hysteresis_loop.py](hysteresis_loop.py) ：滞回圈绘制函数，可以单图绘制，也可以多图绘制
+ utils.[find_max.py](find_max.py) ：找到每个滞回角中力的绝对值最大点的序号
+
+ utils.[hysteresis_loop.py](hysteresis_loop.py) ：滞回圈绘制函数，可以单图绘制，也可以多图绘制
+
+------
 
  **[characteristic_engineering.py](characteristic_engineering.py)** ：文件用于实现特征工程，其输入文件为提取出力-位移数据的txt文件，该文件用于绘制滞回曲线与累计耗能曲线，并没有什么实际意义。
 
